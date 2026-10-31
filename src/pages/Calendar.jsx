@@ -122,7 +122,7 @@ function Calendar({ user }) {
   const dayTodosList = selectedDate ? todos.filter(t => t.dueDate === selectedDate) : [];
 
   return (
-    <Layout user={user}>
+    <Layout user={user} petId={petId} petVisible={petVisible} setPetVisible={setPetVisible} weatherVisible={weatherVisible} setWeatherVisible={setWeatherVisible}>
       <Stack gap="lg">
         <Group justify="space-between">
           <Stack gap={4}>

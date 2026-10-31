@@ -32,7 +32,7 @@ function Profile({ user, setUser }) {
   };
 
   return (
-    <Layout user={user}>
+    <Layout user={user} petVisible={petVisible} setPetVisible={setPetVisible} weatherVisible={weatherVisible} setWeatherVisible={setWeatherVisible}>
       <Stack gap="lg">
         <Group justify="space-between">
           <Stack gap={4}>
