@@ -11,6 +11,7 @@ import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import 'react-toastify/dist/ReactToastify.css';
 import './styles/responsive.css';
+import './styles/glass.css';
 
 const theme = createTheme({
   primaryColor: 'blue',

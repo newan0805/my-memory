@@ -6,6 +6,7 @@ const CHANGE_EVENT = 'preferences-change';
 export const DEFAULT_PREFERENCES = {
   petId: 'blob',
   petName: '',
+  customPetEmoji: '🐢',
   petVisible: true,
   weatherVisible: true,
   timeBackground: true,

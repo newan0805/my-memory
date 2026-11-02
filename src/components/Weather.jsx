@@ -17,6 +17,11 @@ const getIcon = (condition, isDay) => {
   }
 };
 
+const updatedAgo = (ts) => {
+  const mins = Math.round((Date.now() - ts) / 60000);
+  return mins < 60 ? `${mins} min ago` : `${Math.round(mins / 60)} h ago`;
+};
+
 const ICON_COLORS = { clear: '#facc15', partly: '#fbbf24', snow: '#e0f2fe', storm: '#a78bfa' };
 
 // compact: single-line chip for the mobile header; otherwise a card for the sidebar.
@@ -35,11 +40,13 @@ function Weather({ weather, error, compact = false }) {
   const Icon = getIcon(weather.condition, weather.isDay);
   const iconColor = ICON_COLORS[weather.condition] || '#cbd5e1';
   const label = CONDITION_LABELS[weather.condition];
+  // Shown when the weather services are down and we're displaying the last known reading.
+  const staleNote = weather.stale ? `Last updated ${updatedAgo(weather.fetchedAt)}` : null;
 
   if (compact) {
     return (
-      <Tooltip label={`${label} · ${weather.location}`}>
-        <Group gap={4} wrap="nowrap">
+      <Tooltip label={[label, weather.location, staleNote].filter(Boolean).join(' · ')}>
+        <Group gap={4} wrap="nowrap" style={{ opacity: weather.stale ? 0.6 : 1 }}>
           <Icon size={18} color={iconColor} />
           <Text size="sm" fw={600}>{weather.temperature}°</Text>
         </Group>
@@ -62,6 +69,7 @@ function Weather({ weather, error, compact = false }) {
           <IconMapPin size={10} color="#94a3b8" />
           <Text size="xs" c="#94a3b8" truncate>{weather.location}</Text>
         </Group>
+        {staleNote && <Text size="xs" c="orange.4" truncate>{staleNote}</Text>}
       </Stack>
     </Group>
   );

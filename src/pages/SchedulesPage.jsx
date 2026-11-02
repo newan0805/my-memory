@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Title, Text, Card, Group, Stack, Button, Badge, Paper, ActionIcon, Modal, TextInput, Select, Progress, Textarea, Collapse, Radio, Tooltip } from '@mantine/core';
-import { IconArrowLeft, IconPlus, IconTrash, IconClock, IconMapPin, IconEdit, IconChevronRight, IconChevronDown, IconSubtask, IconRepeat } from '@tabler/icons-react';
+import { IconArrowLeft, IconPlus, IconTrash, IconClock, IconMapPin, IconEdit, IconChevronDown, IconSubtask, IconRepeat } from '@tabler/icons-react';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import { getLocalDateStr } from '../utils/date';
@@ -11,6 +11,16 @@ import { loadSubtasks, subtaskHandlers, draftHandlers } from '../utils/subtasks'
 import RecurrenceFields from '../components/RecurrenceFields';
 import useScheduleActions, { SCOPE_OPTIONS } from '../hooks/useScheduleActions';
 import { NO_REPEAT, describeRule } from '../utils/recurrence';
+
+const PRIORITY_COLORS = { high: '#f87171', medium: '#facc15', low: '#60a5fa' };
+
+const formatPart = (dateStr, options) => new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', options);
+
+const isNow = (schedule) => {
+  const now = new Date();
+  const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  return schedule.date === getLocalDateStr(now) && schedule.startTime <= time && time < (schedule.endTime > schedule.startTime ? schedule.endTime : '24:00');
+};
 
 function SchedulesPage({ user }) {
   const navigate = useNavigate();
@@ -69,6 +79,7 @@ function SchedulesPage({ user }) {
 
   const [filter, setFilter] = useDateFilter('schedules', { preset: 'week', sort: 'asc' });
   const range = getDateRange(filter);
+  const today = getLocalDateStr();
   const sorted = sortByDate(schedules.filter(s => isInRange(s.date, range)), filter.sort, s => s.date, s => s.startTime);
 
   return (
@@ -87,57 +98,71 @@ function SchedulesPage({ user }) {
 
         <DateFilter value={filter} onChange={setFilter} />
 
-        <Card withBorder padding="lg" style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(10px)' }}>
-          <Stack gap="md">
+        <Card withBorder padding="lg" radius="lg" className="glass-panel">
+          <Stack gap="sm">
             {sorted.map(schedule => {
               const sts = getSubtasksForSchedule(schedule.id);
               const progress = getProgress(schedule.id);
               return (
-                <Paper key={schedule.id} p="md" withBorder style={{ cursor: 'pointer' }} onClick={() => openDetail(schedule)}>
-                  <Stack gap="sm">
-                    <Group justify="space-between" align="flex-start" wrap="nowrap">
-                      <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
-                        <Group gap="xs">
-                          <Text fw={600} size="lg">{schedule.title}</Text>
-                          <Badge color={schedule.priority === 'high' ? 'red' : schedule.priority === 'medium' ? 'yellow' : 'blue'}>{schedule.priority}</Badge>
-                          <Badge variant="light">{schedule.category}</Badge>
-                          {schedule.seriesId && (
-                            <Tooltip label={describeRule(schedule.recurrence)}>
-                              <Badge variant="light" color="grape" leftSection={<IconRepeat size={12} />}>Repeats</Badge>
-                            </Tooltip>
-                          )}
-                          {sts.length > 0 && <Badge color="violet">{sts.filter(s=>s.completed).length}/{sts.length} tasks</Badge>}
+                <Paper
+                  key={schedule.id}
+                  p="md"
+                  className={`glass-card is-clickable${schedule.completed ? ' is-done' : ''}`}
+                  style={{ '--accent': PRIORITY_COLORS[schedule.priority] || PRIORITY_COLORS.medium }}
+                  onClick={() => openDetail(schedule)}
+                >
+                  <Group align="flex-start" wrap="nowrap" gap="md">
+                    <div className={`date-tile${schedule.date === today ? ' is-today' : ''}`}>
+                      <Text size="xs" c="dimmed" tt="uppercase" fw={600}>{formatPart(schedule.date, { weekday: 'short' })}</Text>
+                      <Text fw={700} size="xl" lh={1.1}>{formatPart(schedule.date, { day: 'numeric' })}</Text>
+                      <Text size="xs" c="dimmed" tt="uppercase">{formatPart(schedule.date, { month: 'short' })}</Text>
+                    </div>
+
+                    <Stack gap={6} style={{ flex: 1, minWidth: 0 }}>
+                      <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
+                        <Text fw={600} size="md" lineClamp={2} style={{ flex: 1, minWidth: 0 }}>{schedule.title}</Text>
+                        <Group gap={2} wrap="nowrap">
+                          <ActionIcon variant="subtle" aria-label="Edit schedule" onClick={(e) => { e.stopPropagation(); openEdit(schedule); }}><IconEdit size={16} /></ActionIcon>
+                          <ActionIcon variant="subtle" color="red" aria-label="Delete schedule" onClick={(e) => { e.stopPropagation(); actions.requestDelete(schedule); }}><IconTrash size={16} /></ActionIcon>
                         </Group>
-                        <Group gap="md">
-                          <Text size="sm" c="dimmed">📅 {schedule.date}</Text>
-                          <Text size="sm" c="dimmed">🕐 {schedule.startTime} - {schedule.endTime}</Text>
-                          {schedule.location && <Group gap={4}><IconMapPin size={14} /><Text size="sm" c="dimmed">{schedule.location}</Text></Group>}
-                        </Group>
-                        {schedule.description && <Text size="sm" c="dimmed">{schedule.description}</Text>}
-                      </Stack>
-                      <Group gap="xs" wrap="nowrap">
-                        <ActionIcon onClick={(e) => { e.stopPropagation(); openEdit(schedule); }}><IconEdit size={16} /></ActionIcon>
-                        <ActionIcon color="red" onClick={(e) => { e.stopPropagation(); actions.requestDelete(schedule); }}><IconTrash size={16} /></ActionIcon>
-                        <IconChevronRight size={16} />
                       </Group>
-                    </Group>
-                    {sts.length > 0 && !expanded[schedule.id] && (
-                      <Progress value={progress} color={progress === 100 ? 'green' : 'blue'} size="sm" />
-                    )}
-                    <Button
-                      variant="subtle"
-                      size="compact-sm"
-                      leftSection={<IconSubtask size={14} />}
-                      rightSection={expanded[schedule.id] ? <IconChevronDown size={14} style={{ transform: 'rotate(180deg)' }} /> : <IconChevronDown size={14} />}
-                      onClick={(e) => { e.stopPropagation(); setExpanded({ ...expanded, [schedule.id]: !expanded[schedule.id] }); }}
-                      style={{ alignSelf: 'flex-start' }}
-                    >
-                      {sts.length > 0 ? `Subtasks ${sts.filter((st) => st.completed).length}/${sts.length}` : 'Add subtasks'}
-                    </Button>
-                    <Collapse in={!!expanded[schedule.id]}>
-                      <SubtaskChecklist items={sts} {...subtaskHandlers(subtasks, schedule.id, setSubtasks)} />
-                    </Collapse>
-                  </Stack>
+
+                      <Group gap="sm" wrap="wrap">
+                        <Group gap={4} wrap="nowrap"><IconClock size={14} color="var(--mantine-color-dimmed)" /><Text size="sm" c="dimmed">{schedule.startTime} – {schedule.endTime}</Text></Group>
+                        {schedule.location && <Group gap={4} wrap="nowrap"><IconMapPin size={14} color="var(--mantine-color-dimmed)" /><Text size="sm" c="dimmed" lineClamp={1}>{schedule.location}</Text></Group>}
+                        {isNow(schedule) && <Badge size="sm" color="orange" variant="filled">Now</Badge>}
+                      </Group>
+
+                      <Group gap={6} wrap="wrap">
+                        <Badge size="sm" variant="dot" color={schedule.priority === 'high' ? 'red' : schedule.priority === 'medium' ? 'yellow' : 'blue'}>{schedule.priority}</Badge>
+                        <Badge size="sm" variant="light">{schedule.category}</Badge>
+                        {schedule.seriesId && (
+                          <Tooltip label={describeRule(schedule.recurrence)}>
+                            <Badge size="sm" variant="light" color="grape" leftSection={<IconRepeat size={11} />}>Repeats</Badge>
+                          </Tooltip>
+                        )}
+                      </Group>
+
+                      {schedule.description && <Text size="sm" c="dimmed" lineClamp={2}>{schedule.description}</Text>}
+
+                      <Group gap="sm" wrap="nowrap" mt={2}>
+                        <Button
+                          variant="subtle"
+                          size="compact-sm"
+                          leftSection={<IconSubtask size={14} />}
+                          rightSection={<IconChevronDown size={14} style={{ transform: expanded[schedule.id] ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }} />}
+                          onClick={(e) => { e.stopPropagation(); setExpanded({ ...expanded, [schedule.id]: !expanded[schedule.id] }); }}
+                        >
+                          {sts.length > 0 ? `${sts.filter((st) => st.completed).length}/${sts.length} subtasks` : 'Add subtasks'}
+                        </Button>
+                        {sts.length > 0 && <Progress value={progress} color={progress === 100 ? 'green' : 'violet'} size="sm" radius="xl" style={{ flex: 1 }} />}
+                      </Group>
+
+                      <Collapse in={!!expanded[schedule.id]}>
+                        <SubtaskChecklist items={sts} {...subtaskHandlers(subtasks, schedule.id, setSubtasks)} />
+                      </Collapse>
+                    </Stack>
+                  </Group>
                 </Paper>
               );
             })}

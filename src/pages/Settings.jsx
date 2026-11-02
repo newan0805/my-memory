@@ -4,7 +4,7 @@ import { Container, Card, Title, Text, Button, Stack, Group, Switch, Divider, Al
 import { IconArrowLeft, IconTrash, IconAlertTriangle, IconSettings, IconDatabase, IconPalette, IconDeviceFloppy, IconCloudUpload } from '@tabler/icons-react';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
-import { PETS, PetSvg } from '../components/Pet';
+import { PETS, PetSvg, parseEmoji } from '../components/Pet';
 import usePreferences from '../hooks/usePreferences';
 import BackupRestore from '../components/BackupRestore';
 import { clearAllData } from '../utils/storage';
@@ -14,7 +14,21 @@ function Settings({ user, setUser }) {
   const [preferences, updatePreferences] = usePreferences();
   const [petName, setPetName] = useState(preferences.petName);
 
+  const [petEmoji, setPetEmoji] = useState(preferences.customPetEmoji);
+
   useEffect(() => setPetName(preferences.petName), [preferences.petName]);
+  useEffect(() => setPetEmoji(preferences.customPetEmoji), [preferences.customPetEmoji]);
+
+  const savePetEmoji = () => {
+    const emoji = parseEmoji(petEmoji);
+    if (!emoji) {
+      toast.error('Please enter an emoji (use your keyboard\'s emoji picker)');
+      return;
+    }
+    setPetEmoji(emoji);
+    updatePreferences({ customPetEmoji: emoji, petId: 'emoji' });
+    toast.success(`Your pet is now ${emoji}`);
+  };
 
   const savePetName = () => {
     updatePreferences({ petName: petName.trim() });
@@ -97,7 +111,7 @@ function Settings({ user, setUser }) {
 
             {preferences.petVisible && (
               <Stack gap="sm">
-                <SimpleGrid cols={{ base: 2, xs: 4 }} spacing="sm">
+                <SimpleGrid cols={{ base: 3, xs: 5 }} spacing="sm">
                   {PETS.map((pet) => {
                     const selected = preferences.petId === pet.value;
                     return (
@@ -114,12 +128,29 @@ function Settings({ user, setUser }) {
                           transition: 'all 0.15s ease',
                         }}
                       >
-                        <Box w={48} h={48} mx="auto" mb={6}><PetSvg petId={pet.value} /></Box>
+                        <Box w={48} h={48} mx="auto" mb={6}><PetSvg petId={pet.value} emoji={preferences.customPetEmoji} /></Box>
                         <Text size="sm" fw={selected ? 700 : 500}>{pet.label}</Text>
                       </UnstyledButton>
                     );
                   })}
                 </SimpleGrid>
+                {preferences.petId === 'emoji' && (
+                  <Group align="flex-end" wrap="nowrap">
+                    <TextInput
+                      label="Pet emoji"
+                      description="Type or paste any emoji from your keyboard"
+                      placeholder="🐢"
+                      value={petEmoji}
+                      onChange={(e) => setPetEmoji(e.currentTarget.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') savePetEmoji(); }}
+                      styles={{ input: { fontSize: 22 } }}
+                      style={{ flex: 1 }}
+                    />
+                    <Button leftSection={<IconDeviceFloppy size={16} />} onClick={savePetEmoji} disabled={petEmoji === preferences.customPetEmoji}>
+                      Save
+                    </Button>
+                  </Group>
+                )}
                 <Group align="flex-end" wrap="nowrap">
                   <TextInput
                     label="Pet name"

@@ -129,7 +129,7 @@ function Layout({ children, user }) {
       </AppShell>
 
       {preferences.petVisible && (
-        <Pet petId={preferences.petId} petName={preferences.petName} size={isMobile ? 40 : 52} phase={phase} />
+        <Pet petId={preferences.petId} petName={preferences.petName} customEmoji={preferences.customPetEmoji} size={isMobile ? 40 : 52} phase={phase} />
       )}
     </TimeBackground>
   );

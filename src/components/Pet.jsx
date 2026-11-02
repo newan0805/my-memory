@@ -7,7 +7,21 @@ export const PETS = [
   { value: 'cat', label: 'Cat', body: '#f59e0b', accent: '#fde68a' },
   { value: 'ghost', label: 'Ghost', body: '#e2e8f0', accent: '#ffffff' },
   { value: 'robot', label: 'Robot', body: '#38bdf8', accent: '#bae6fd' },
+  // Uses the emoji the user typed in Settings (preferences.customPetEmoji).
+  { value: 'emoji', label: 'Emoji', body: '#8b5cf6', accent: '#c4b5fd' },
 ];
+
+export const DEFAULT_PET_EMOJI = '🐢';
+
+// First grapheme of the input if it's an emoji (handles skin tones, ZWJ sequences and flags), else null.
+export const parseEmoji = (input = '') => {
+  const text = input.trim();
+  if (!text) return null;
+  const first = typeof Intl !== 'undefined' && Intl.Segmenter
+    ? [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)][0]?.segment
+    : Array.from(text)[0];
+  return first && /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(first) ? first : null;
+};
 
 const Face = ({ blinking, happy }) => (
   <>
@@ -30,8 +44,18 @@ const Face = ({ blinking, happy }) => (
   </>
 );
 
-export const PetSvg = ({ petId, blinking, happy }) => {
+export const PetSvg = ({ petId, blinking, happy, emoji }) => {
   const pet = PETS.find((p) => p.value === petId) || PETS[0];
+  if (petId === 'emoji') {
+    return (
+      <svg viewBox="0 0 64 64" width="100%" height="100%" style={{ overflow: 'visible' }}>
+        <text x="32" y="34" textAnchor="middle" dominantBaseline="central" fontSize="50"
+          style={{ transform: happy ? 'scale(1.08)' : undefined, transformOrigin: 'center', transition: 'transform 0.2s' }}>
+          {emoji || DEFAULT_PET_EMOJI}
+        </text>
+      </svg>
+    );
+  }
   return (
     <svg viewBox="0 0 64 64" width="100%" height="100%" style={{ overflow: 'visible' }}>
       {petId === 'cat' && (
@@ -61,7 +85,7 @@ export const PetSvg = ({ petId, blinking, happy }) => {
   );
 };
 
-function Pet({ petId = 'blob', petName, size = 44, phase }) {
+function Pet({ petId = 'blob', petName, customEmoji, size = 44, phase }) {
   const [blinking, setBlinking] = useState(false);
   const [message, setMessage] = useState(null);
   const dragged = useRef(false);
@@ -133,7 +157,7 @@ function Pet({ petId = 'blob', petName, size = 44, phase }) {
         transition={{ duration: phase === 'night' ? 4 : 2.2, repeat: Infinity, ease: 'easeInOut' }}
         style={{ width: '100%', height: '100%', filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.45))' }}
       >
-        <PetSvg petId={petId} blinking={blinking || phase === 'night'} happy={!!message} />
+        <PetSvg petId={petId} emoji={customEmoji} blinking={blinking || phase === 'night'} happy={!!message} />
       </motion.div>
     </motion.div>
   );

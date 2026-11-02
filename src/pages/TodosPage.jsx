@@ -1,11 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Title, Text, Card, Group, Stack, Button, Badge, Checkbox, Paper, ActionIcon, Modal, TextInput, Select } from '@mantine/core';
-import { IconArrowLeft, IconPlus, IconTrash, IconChecklist } from '@tabler/icons-react';
+import { IconArrowLeft, IconPlus, IconTrash, IconChecklist, IconClock } from '@tabler/icons-react';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import { getLocalDateStr } from '../utils/date';
 import DateFilter, { useDateFilter, getDateRange, isInRange, sortByDate } from '../components/DateFilter';
+
+const PRIORITY_COLORS = { high: '#f87171', medium: '#facc15', low: '#60a5fa' };
+
+const formatDue = (dateStr, today) => {
+  if (!dateStr) return '';
+  if (dateStr === today) return 'Today';
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+};
+
+function TodoCard({ todo, today, onToggle, onDelete }) {
+  const overdue = !todo.completed && todo.dueDate && todo.dueDate < today;
+  return (
+    <Paper
+      p="sm"
+      className={`glass-card${todo.completed ? ' is-done' : ''}`}
+      style={{ '--accent': overdue ? '#ef4444' : PRIORITY_COLORS[todo.priority] || PRIORITY_COLORS.medium }}
+    >
+      <Group wrap="nowrap" gap="sm" align="center">
+        <Checkbox radius="xl" size="md" checked={!!todo.completed} onChange={() => onToggle(todo.id)} aria-label={`Mark "${todo.title}" ${todo.completed ? 'not done' : 'done'}`} />
+        <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
+          <Text fw={500} lineClamp={2} td={todo.completed ? 'line-through' : undefined} c={todo.completed ? 'dimmed' : undefined}>{todo.title}</Text>
+          <Group gap={8} wrap="wrap">
+            <Group gap={4} wrap="nowrap">
+              <IconClock size={13} color={overdue ? 'var(--mantine-color-red-5)' : 'var(--mantine-color-dimmed)'} />
+              <Text size="xs" c={overdue ? 'red.4' : 'dimmed'}>{formatDue(todo.dueDate, today)}{todo.dueTime ? ` · ${todo.dueTime}` : ''}</Text>
+            </Group>
+            {overdue && <Badge size="xs" color="red" variant="filled">Overdue</Badge>}
+            {todo.category && <Badge size="xs" variant="light" color="gray">{todo.category}</Badge>}
+          </Group>
+        </Stack>
+        <ActionIcon color="red" variant="subtle" onClick={() => onDelete(todo.id)} aria-label="Delete todo"><IconTrash size={16} /></ActionIcon>
+      </Group>
+    </Paper>
+  );
+}
 
 function TodosPage({ user }) {
   const navigate = useNavigate();
@@ -70,77 +105,23 @@ function TodosPage({ user }) {
 
         <DateFilter value={filter} onChange={setFilter} />
 
-        <Card withBorder padding="lg" style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(10px)' }}>
+        <Card withBorder padding="lg" radius="lg" className="glass-panel">
           <Stack gap="lg">
-            {highTodos.length > 0 && (
-              <Stack gap="xs">
-                <Text fw={600} size="lg">🔥 High Priority ({highTodos.length})</Text>
-                {highTodos.map(todo => (
-                  <Paper key={todo.id} p="md" withBorder style={{ background: 'rgba(239, 68, 68, 0.05)' }}>
-                    <Group align="flex-start" wrap="nowrap">
-                      <Checkbox checked={todo.completed} onChange={() => toggleTodo(todo.id)} mt={2} />
-                      <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
-                        <Group justify="space-between" wrap="nowrap" align="flex-start">
-                          <Text fw={500} style={{ flex: 1, minWidth: 0 }} td={todo.completed ? 'line-through' : 'none'} c={todo.completed ? 'dimmed' : undefined}>{todo.title}</Text>
-                          <ActionIcon color="red" variant="subtle" onClick={() => deleteTodo(todo.id)}><IconTrash size={16} /></ActionIcon>
-                        </Group>
-                        <Group gap="xs">
-                          <Badge color="red">High</Badge>
-                          <Text size="sm" c={!todo.completed && todo.dueDate < today ? 'red' : 'dimmed'}>Due: {todo.dueDate} {todo.dueTime}</Text>
-                          <Text size="sm" c="dimmed">{todo.category}</Text>
-                        </Group>
-                      </Stack>
-                    </Group>
-                  </Paper>
+            {[
+              { key: 'high', label: '🔥 High Priority', items: highTodos },
+              { key: 'medium', label: '⚡ Medium Priority', items: mediumTodos },
+              { key: 'low', label: '🌿 Low Priority', items: lowTodos },
+            ].filter((g) => g.items.length > 0).map((group) => (
+              <Stack gap="xs" key={group.key}>
+                <Group gap="xs">
+                  <Text fw={600}>{group.label}</Text>
+                  <Badge size="sm" variant="light" color="gray">{group.items.filter((t) => !t.completed).length}/{group.items.length} left</Badge>
+                </Group>
+                {group.items.map((todo) => (
+                  <TodoCard key={todo.id} todo={todo} today={today} onToggle={toggleTodo} onDelete={deleteTodo} />
                 ))}
               </Stack>
-            )}
-            {mediumTodos.length > 0 && (
-              <Stack gap="xs">
-                <Text fw={600} size="lg">⚡ Medium Priority ({mediumTodos.length})</Text>
-                {mediumTodos.map(todo => (
-                  <Paper key={todo.id} p="md" withBorder>
-                    <Group align="flex-start" wrap="nowrap">
-                      <Checkbox checked={todo.completed} onChange={() => toggleTodo(todo.id)} mt={2} />
-                      <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
-                        <Group justify="space-between" wrap="nowrap" align="flex-start">
-                          <Text fw={500} style={{ flex: 1, minWidth: 0 }} td={todo.completed ? 'line-through' : 'none'} c={todo.completed ? 'dimmed' : undefined}>{todo.title}</Text>
-                          <ActionIcon color="red" variant="subtle" onClick={() => deleteTodo(todo.id)}><IconTrash size={16} /></ActionIcon>
-                        </Group>
-                        <Group gap="xs">
-                          <Badge color="yellow">Medium</Badge>
-                          <Text size="sm" c={!todo.completed && todo.dueDate < today ? 'red' : 'dimmed'}>Due: {todo.dueDate} {todo.dueTime}</Text>
-                          <Text size="sm" c="dimmed">{todo.category}</Text>
-                        </Group>
-                      </Stack>
-                    </Group>
-                  </Paper>
-                ))}
-              </Stack>
-            )}
-            {lowTodos.length > 0 && (
-              <Stack gap="xs">
-                <Text fw={600} size="lg">📝 Low Priority ({lowTodos.length})</Text>
-                {lowTodos.map(todo => (
-                  <Paper key={todo.id} p="md" withBorder>
-                    <Group align="flex-start" wrap="nowrap">
-                      <Checkbox checked={todo.completed} onChange={() => toggleTodo(todo.id)} mt={2} />
-                      <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
-                        <Group justify="space-between" wrap="nowrap" align="flex-start">
-                          <Text fw={500} style={{ flex: 1, minWidth: 0 }} td={todo.completed ? 'line-through' : 'none'} c={todo.completed ? 'dimmed' : undefined}>{todo.title}</Text>
-                          <ActionIcon color="red" variant="subtle" onClick={() => deleteTodo(todo.id)}><IconTrash size={16} /></ActionIcon>
-                        </Group>
-                        <Group gap="xs">
-                          <Badge color="blue">Low</Badge>
-                          <Text size="sm" c={!todo.completed && todo.dueDate < today ? 'red' : 'dimmed'}>Due: {todo.dueDate} {todo.dueTime}</Text>
-                          <Text size="sm" c="dimmed">{todo.category}</Text>
-                        </Group>
-                      </Stack>
-                    </Group>
-                  </Paper>
-                ))}
-              </Stack>
-            )}
+            ))}
             {visibleTodos.length === 0 && (
               <Stack align="center" py="xl">
                 <Text c="dimmed">{todos.length === 0 ? 'No todos yet. Add your first todo!' : 'No todos for this date range.'}</Text>
