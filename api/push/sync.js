@@ -1,4 +1,5 @@
 import { Redis } from '@upstash/redis';
+import { Client as QStash } from '@upstash/qstash';
 import { timingSafeEqual } from 'node:crypto';
 
 const jsonError = (response, status, error) => response.status(status).json({ error });
@@ -11,10 +12,29 @@ const tokenMatches = (provided, stored) => {
   return a.length === b.length && timingSafeEqual(a, b);
 };
 
+const updateDispatcher = async (redis, request) => {
+  if (!process.env.QSTASH_TOKEN || !process.env.CRON_SECRET) throw new Error('QStash is not configured.');
+  const qstash = new QStash({ token: process.env.QSTASH_TOKEN });
+  const scheduleId = 'my-memory-push-dispatch';
+  if (await redis.zcard('push:due') === 0) {
+    await qstash.schedules.delete(scheduleId).catch(() => {});
+    return;
+  }
+  const host = process.env.VERCEL_URL || request.headers['x-forwarded-host'] || request.headers.host;
+  if (!host) throw new Error('Push callback host is unavailable.');
+  await qstash.schedules.create({
+    destination: `https://${String(host).split(',')[0]}/api/cron/push`,
+    scheduleId,
+    cron: '*/5 * * * *',
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+    body: { trigger: 'due-reminder-check' },
+  });
+};
+
 export default async function handler(request, response) {
   if (request.method !== 'POST') return jsonError(response, 405, 'Use POST.');
-  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-    return jsonError(response, 503, 'Push storage is not configured yet.');
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN || !process.env.QSTASH_TOKEN || !process.env.CRON_SECRET) {
+    return jsonError(response, 503, 'Push storage and scheduler are not configured yet.');
   }
 
   const { deviceId, deviceToken, subscription, items, enabled = true } = request.body || {};
@@ -56,6 +76,7 @@ export default async function handler(request, response) {
       pipeline.del(`push:device-items:${deviceId}`);
       pipeline.del(deviceKey);
       await pipeline.exec();
+      await updateDispatcher(redis, request);
       return response.status(200).json({ ok: true, disabled: true });
     }
 
@@ -76,6 +97,7 @@ export default async function handler(request, response) {
       pipeline.zadd('push:due', { score: item.dueAt, member: id });
     });
     await pipeline.exec();
+    await updateDispatcher(redis, request);
     return response.status(200).json({ ok: true, reminders: cleanItems.length });
   } catch (error) {
     console.error('Push reminder sync failed:', error);

@@ -1,8 +1,9 @@
 import { Redis } from '@upstash/redis';
+import { Client as QStash } from '@upstash/qstash';
 import webPush from 'web-push';
 
 export default async function handler(request, response) {
-  if (request.method !== 'GET') return response.status(405).send('Use GET.');
+  if (request.method !== 'POST') return response.status(405).send('Use POST.');
   if (!process.env.CRON_SECRET || request.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return response.status(401).send('Unauthorized.');
   }
@@ -60,6 +61,10 @@ export default async function handler(request, response) {
           console.error('Push delivery failed:', error.statusCode || error.message);
         }
       }
+    }
+
+    if (await redis.zcard('push:due') === 0 && process.env.QSTASH_TOKEN) {
+      await new QStash({ token: process.env.QSTASH_TOKEN }).schedules.delete('my-memory-push-dispatch').catch(() => {});
     }
 
     return response.status(200).json({ ok: true, sent, removed, checked: ids.length });

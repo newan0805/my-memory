@@ -8,6 +8,7 @@ Connect an Upstash Redis database to the Vercel project. The integration supplie
 
 - `UPSTASH_REDIS_REST_URL`
 - `UPSTASH_REDIS_REST_TOKEN`
+- `QSTASH_TOKEN`
 
 Generate a VAPID key pair with `npx web-push generate-vapid-keys --json`, then add:
 
@@ -16,10 +17,10 @@ Generate a VAPID key pair with `npx web-push generate-vapid-keys --json`, then a
 - `VAPID_SUBJECT` (for example, `mailto:admin@example.com`)
 - `CRON_SECRET` (a random secret of at least 32 characters)
 
-Set these for the Production environment and redeploy. Keep the private VAPID key and cron secret private.
+Set these for the Preview environment (and Production if you use it) and redeploy. Keep the private VAPID key, QStash token, and cron secret private.
 
 ## Scheduler limits
 
-`vercel.json` runs `/api/cron/push` every minute. Vercel creates Cron Jobs only for production deployments, not preview deployments. Minute-level timing requires Vercel Pro; Hobby allows only one scheduled run per day, which is too infrequent for task reminders. The current `dev-test` preview therefore does not run the delivery scheduler.
+The app creates a QStash recurring dispatcher while there are pending reminders. It checks for due reminders every five minutes and stops itself when the queue becomes empty. This works with preview deployments and avoids Vercel Cron's production-only and Hobby timing limits. QStash's free tier has a daily message quota, so a busy device may need a paid plan.
 
 Users still need to install the PWA on iPhone, grant notification permission, and enable reminders in Settings. Each device has its own subscription and reminder list.

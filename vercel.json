@@ -1,7 +1,4 @@
 {
-  "crons": [
-    { "path": "/api/cron/push", "schedule": "* * * * *" }
-  ],
   "rewrites": [
     { "source": "/api/quotes", "destination": "https://zenquotes.io/api/quotes" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
