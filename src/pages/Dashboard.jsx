@@ -40,7 +40,10 @@ import { toast } from 'react-toastify';
 import { motion } from 'framer-motion';
 import Layout from '../components/Layout';
 import SubtaskChecklist from '../components/SubtaskChecklist';
-import { loadSubtasks, addDraftSubtasks, removeSubtasksForSchedule, subtaskHandlers, draftHandlers, newId } from '../utils/subtasks';
+import { loadSubtasks, subtaskHandlers, draftHandlers } from '../utils/subtasks';
+import RecurrenceFields from '../components/RecurrenceFields';
+import useScheduleActions from '../hooks/useScheduleActions';
+import { NO_REPEAT } from '../utils/recurrence';
 
 function timeToMinutes(timeStr) {
   if (!timeStr) return 0;
@@ -67,6 +70,7 @@ function Dashboard({ user }) {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [draftSubtasks, setDraftSubtasks] = useState([]);
+  const [repeat, setRepeat] = useState(NO_REPEAT);
   const [newTodo, setNewTodo] = useState({ title: '', priority: 'medium', dueTime: '09:00', category: 'Personal' });
   const [newSchedule, setNewSchedule] = useState({ title: '', startTime: '09:00', endTime: '10:00', category: 'Work', location: '', priority: 'medium', description: '' });
 
@@ -156,14 +160,6 @@ function Dashboard({ user }) {
     toast.success('Task deleted');
   };
 
-  const deleteSchedule = (id) => {
-    const updated = schedules.filter(s => s.id !== id);
-    localStorage.setItem('schedules', JSON.stringify(updated));
-    setSchedules(updated);
-    setSubtasks(removeSubtasksForSchedule(subtasks, id));
-    toast.success('Schedule deleted');
-  };
-
   const completeAllOverdue = () => {
     const updated = todos.map(t => t.dueDate < getTodayStr() && !t.completed ? { ...t, completed: true } : t);
     localStorage.setItem('todos', JSON.stringify(updated));
@@ -182,17 +178,14 @@ function Dashboard({ user }) {
     toast.success('Todo added!');
   };
 
+  const actions = useScheduleActions({ schedules, subtasks, setSchedules, setSubtasks });
+
   const addSchedule = () => {
-    if (!newSchedule.title) return toast.error('Please enter a title');
-    const schedule = { id: newId(), ...newSchedule, date: getTodayStr(), completed: false };
-    const updated = [...schedules, schedule];
-    localStorage.setItem('schedules', JSON.stringify(updated));
-    setSchedules(updated);
-    setSubtasks(addDraftSubtasks(subtasks, schedule.id, draftSubtasks));
+    if (!actions.add({ base: { ...newSchedule, date: getTodayStr() }, rule: repeat, drafts: draftSubtasks })) return;
     setDraftSubtasks([]);
+    setRepeat(NO_REPEAT);
     setScheduleModalOpen(false);
     setNewSchedule({ title: '', startTime: '09:00', endTime: '10:00', category: 'Work', location: '', priority: 'medium', description: '' });
-    toast.success('Schedule added!');
   };
 
   const openDetail = (schedule) => {
@@ -330,7 +323,7 @@ function Dashboard({ user }) {
                               <Group gap="xs">
                                 <Text size="sm" c="dimmed">{schedule.startTime} – {schedule.endTime}</Text>
                                 <ActionIcon size="sm" onClick={() => openDetail(schedule)}><IconEdit size={14} /></ActionIcon>
-                                <ActionIcon size="sm" color="red" variant="subtle" onClick={() => deleteSchedule(schedule.id)}><IconTrash size={14} /></ActionIcon>
+                                <ActionIcon size="sm" color="red" variant="subtle" onClick={() => actions.requestDelete(schedule)}><IconTrash size={14} /></ActionIcon>
                               </Group>
                             </Group>
                             <Group gap="md" ml={0}>
@@ -548,6 +541,7 @@ function Dashboard({ user }) {
           <TextInput label="Location" placeholder="Enter location (optional)" value={newSchedule.location} onChange={(e) => setNewSchedule({...newSchedule, location: e.target.value})} />
           <Select label="Priority" data={[{value:'high',label:'High'},{value:'medium',label:'Medium'},{value:'low',label:'Low'}]} value={newSchedule.priority} onChange={(v) => setNewSchedule({...newSchedule, priority: v})} />
           <Textarea label="Description" value={newSchedule.description} onChange={(e) => setNewSchedule({...newSchedule, description: e.target.value})} />
+          <RecurrenceFields value={repeat} onChange={setRepeat} startDate={getTodayStr()} />
           <SubtaskChecklist draft items={draftSubtasks} {...draftHandlers(draftSubtasks, setDraftSubtasks)} />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={() => setScheduleModalOpen(false)}>Cancel</Button>
@@ -571,6 +565,7 @@ function Dashboard({ user }) {
           </Stack>
         )}
       </Modal>
+      {actions.deleteDialog}
     </Layout>
   );
 }

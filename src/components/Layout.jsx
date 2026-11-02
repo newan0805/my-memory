@@ -26,7 +26,7 @@ function Layout({ children, user }) {
   const navigate = useNavigate();
   const location = useLocation();
   // Matches Mantine's "sm" breakpoint (48em) used by the AppShell below.
-  const isMobile = useMediaQuery('(max-width: 48em)');
+  const isMobile = useMediaQuery('(max-width: 47.99em)');
   const [opened, setOpened] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true');
   const [preferences] = usePreferences();

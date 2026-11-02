@@ -72,7 +72,7 @@ export const useDateFilter = (pageKey, defaults = { preset: 'today', sort: 'asc'
 };
 
 function DateFilter({ value, onChange, presets = DEFAULT_PRESETS }) {
-  const isMobile = useMediaQuery('(max-width: 48em)');
+  const isMobile = useMediaQuery('(max-width: 47.99em)');
   const options = presets.map((p) => ({ value: p, label: PRESET_LABELS[p] }));
   const update = (changes) => onChange({ ...value, ...changes });
 

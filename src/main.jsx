@@ -40,7 +40,7 @@ const theme = createTheme({
 });
 
 function Toasts() {
-  const isMobile = useMediaQuery('(max-width: 48em)');
+  const isMobile = useMediaQuery('(max-width: 47.99em)');
   return <ToastContainer position={isMobile ? 'top-center' : 'top-right'} theme="dark" newestOnTop limit={3} />;
 }
 

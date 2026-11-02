@@ -1,4 +1,4 @@
-/* App-wide responsive rules (Mantine "sm" breakpoint = 48em). */
+/* App-wide responsive rules (Mantine "sm" breakpoint = 48em; mobile is below it). */
 
 html {
   background: #0f172a;
@@ -33,7 +33,7 @@ body {
   top: calc(1em + env(safe-area-inset-top));
 }
 
-@media (max-width: 48em) {
+@media (max-width: 47.99em) {
   /* Dialogs become full-screen sheets on phones. */
   .mantine-Modal-inner {
     padding: 0 !important;

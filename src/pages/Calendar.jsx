@@ -1,21 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Title, Text, Card, Group, Stack, Button, Badge, Grid, ActionIcon, Modal, TextInput, Select } from '@mantine/core';
-import { IconArrowLeft, IconChevronLeft, IconChevronRight, IconPlus, IconTrash, IconEdit } from '@tabler/icons-react';
+import { Container, Title, Text, Card, Group, Stack, Button, Badge, Grid, ActionIcon, Modal, TextInput, Select, Radio } from '@mantine/core';
+import { IconArrowLeft, IconChevronLeft, IconChevronRight, IconPlus, IconTrash, IconEdit, IconRepeat } from '@tabler/icons-react';
 import { toast } from 'react-toastify';
 import { useMediaQuery } from '@mantine/hooks';
 import Layout from '../components/Layout';
 import SubtaskChecklist from '../components/SubtaskChecklist';
-import { loadSubtasks, addDraftSubtasks, removeSubtasksForSchedule, subtaskHandlers, draftHandlers, newId } from '../utils/subtasks';
+import { loadSubtasks, subtaskHandlers, draftHandlers } from '../utils/subtasks';
+import RecurrenceFields from '../components/RecurrenceFields';
+import useScheduleActions, { SCOPE_OPTIONS } from '../hooks/useScheduleActions';
+import { NO_REPEAT } from '../utils/recurrence';
 
 function Calendar({ user }) {
   const navigate = useNavigate();
-  const isMobile = useMediaQuery('(max-width: 48em)');
+  const isMobile = useMediaQuery('(max-width: 47.99em)');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [schedules, setSchedules] = useState([]);
   const [todos, setTodos] = useState([]);
   const [subtasks, setSubtasks] = useState([]);
   const [draftSubtasks, setDraftSubtasks] = useState([]);
+  const [repeat, setRepeat] = useState(NO_REPEAT);
+  const [editScope, setEditScope] = useState('one');
   const [selectedDate, setSelectedDate] = useState(null);
   const [dayModalOpen, setDayModalOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
@@ -64,34 +69,18 @@ function Calendar({ user }) {
     setDayModalOpen(true);
   };
 
+  const actions = useScheduleActions({ schedules, subtasks, setSchedules, setSubtasks });
+
   const addSchedule = () => {
-    if (!newSchedule.title) return toast.error('Please enter a title');
-    const schedule = { id: newId(), ...newSchedule, date: selectedDate, completed: false };
-    const updated = [...schedules, schedule];
-    localStorage.setItem('schedules', JSON.stringify(updated));
-    setSchedules(updated);
-    setSubtasks(addDraftSubtasks(subtasks, schedule.id, draftSubtasks));
+    if (!actions.add({ base: { ...newSchedule, date: selectedDate }, rule: repeat, drafts: draftSubtasks })) return;
     setDraftSubtasks([]);
+    setRepeat(NO_REPEAT);
     setScheduleModalOpen(false);
     setNewSchedule({ title: '', startTime: '09:00', endTime: '10:00', category: 'Work', location: '', priority: 'medium' });
-    toast.success('Schedule added!');
   };
 
   const updateSchedule = () => {
-    if (!editSchedule?.title) return toast.error('Please enter a title');
-    const updated = schedules.map(s => s.id === editSchedule.id ? editSchedule : s);
-    localStorage.setItem('schedules', JSON.stringify(updated));
-    setSchedules(updated);
-    setEditSchedule(null);
-    toast.success('Schedule updated!');
-  };
-
-  const deleteSchedule = (id) => {
-    const updated = schedules.filter(s => s.id !== id);
-    localStorage.setItem('schedules', JSON.stringify(updated));
-    setSchedules(updated);
-    setSubtasks(removeSubtasksForSchedule(subtasks, id));
-    toast.success('Schedule deleted');
+    if (actions.save(editSchedule, editScope)) setEditSchedule(null);
   };
 
   const addTodo = () => {
@@ -214,6 +203,7 @@ function Calendar({ user }) {
                 <Stack gap={2}>
                   <Group gap="xs">
                     <Text fw={500}>{s.title}</Text>
+                    {s.seriesId && <IconRepeat size={14} color="var(--mantine-color-grape-4)" aria-label="Repeats" />}
                     {(() => {
                       const sts = subtasks.filter((st) => st.scheduleId === s.id);
                       const done = sts.filter((st) => st.completed).length;
@@ -224,8 +214,8 @@ function Calendar({ user }) {
                   <Group gap="xs"><Badge size="xs">{s.category}</Badge><Badge size="xs" color={s.priority === 'high' ? 'red' : s.priority === 'medium' ? 'yellow' : 'blue'}>{s.priority}</Badge></Group>
                 </Stack>
                 <Group gap="xs">
-                  <ActionIcon size="sm" onClick={() => { setEditSchedule(s); setDayModalOpen(false); }}><IconEdit size={14} /></ActionIcon>
-                  <ActionIcon size="sm" color="red" onClick={() => deleteSchedule(s.id)}><IconTrash size={14} /></ActionIcon>
+                  <ActionIcon size="sm" onClick={() => { setEditScope('one'); setEditSchedule(s); setDayModalOpen(false); }}><IconEdit size={14} /></ActionIcon>
+                  <ActionIcon size="sm" color="red" onClick={() => actions.requestDelete(s)}><IconTrash size={14} /></ActionIcon>
                 </Group>
               </Group>
             </Card>
@@ -258,6 +248,7 @@ function Calendar({ user }) {
           <Select label="Category" data={[{value:'Work',label:'Work'},{value:'Personal',label:'Personal'},{value:'Fitness',label:'Fitness'},{value:'Project',label:'Project'},{value:'Tennis',label:'Tennis'}]} value={newSchedule.category} onChange={(v) => setNewSchedule({...newSchedule, category: v})} />
           <TextInput label="Location" value={newSchedule.location} onChange={(e) => setNewSchedule({...newSchedule, location: e.target.value})} />
           <Select label="Priority" data={[{value:'high',label:'High'},{value:'medium',label:'Medium'},{value:'low',label:'Low'}]} value={newSchedule.priority} onChange={(v) => setNewSchedule({...newSchedule, priority: v})} />
+          <RecurrenceFields value={repeat} onChange={setRepeat} startDate={selectedDate} />
           <SubtaskChecklist draft items={draftSubtasks} {...draftHandlers(draftSubtasks, setDraftSubtasks)} />
           <Group justify="flex-end"><Button variant="subtle" onClick={() => setScheduleModalOpen(false)}>Cancel</Button><Button onClick={addSchedule}>Add</Button></Group>
         </Stack>
@@ -281,6 +272,13 @@ function Calendar({ user }) {
           <TextInput label="Location" value={editSchedule.location || ''} onChange={(e) => setEditSchedule({...editSchedule, location: e.target.value})} />
           <Select label="Priority" data={[{value:'high',label:'High'},{value:'medium',label:'Medium'},{value:'low',label:'Low'}]} value={editSchedule.priority} onChange={(v) => setEditSchedule({...editSchedule, priority: v})} />
           <SubtaskChecklist items={subtasks.filter((st) => st.scheduleId === editSchedule.id)} {...subtaskHandlers(subtasks, editSchedule.id, setSubtasks)} />
+          {editSchedule.seriesId && (
+            <Radio.Group label="Apply changes to" value={editScope} onChange={setEditScope} description="Date, completion and subtasks stay per event">
+              <Stack gap="xs" mt="xs">
+                {SCOPE_OPTIONS.map((o) => <Radio key={o.value} value={o.value} label={o.label} />)}
+              </Stack>
+            </Radio.Group>
+          )}
           <Group justify="flex-end"><Button variant="subtle" onClick={() => setEditSchedule(null)}>Cancel</Button><Button onClick={updateSchedule}>Save</Button></Group>
         </Stack>}
       </Modal>
@@ -294,6 +292,7 @@ function Calendar({ user }) {
           <Group justify="flex-end"><Button variant="subtle" onClick={() => setEditTodo(null)}>Cancel</Button><Button onClick={updateTodo}>Save</Button></Group>
         </Stack>}
       </Modal>
+      {actions.deleteDialog}
     </Layout>
   );
 }

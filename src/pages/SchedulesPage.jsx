@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Title, Text, Card, Group, Stack, Button, Badge, Paper, ActionIcon, Modal, TextInput, Select, Progress, Textarea, Collapse } from '@mantine/core';
-import { IconArrowLeft, IconPlus, IconTrash, IconClock, IconMapPin, IconEdit, IconChevronRight, IconChevronDown, IconSubtask } from '@tabler/icons-react';
+import { Container, Title, Text, Card, Group, Stack, Button, Badge, Paper, ActionIcon, Modal, TextInput, Select, Progress, Textarea, Collapse, Radio, Tooltip } from '@mantine/core';
+import { IconArrowLeft, IconPlus, IconTrash, IconClock, IconMapPin, IconEdit, IconChevronRight, IconChevronDown, IconSubtask, IconRepeat } from '@tabler/icons-react';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import { getLocalDateStr } from '../utils/date';
 import SubtaskChecklist from '../components/SubtaskChecklist';
 import DateFilter, { useDateFilter, getDateRange, isInRange, sortByDate } from '../components/DateFilter';
-import { loadSubtasks, addDraftSubtasks, removeSubtasksForSchedule, subtaskHandlers, draftHandlers, newId } from '../utils/subtasks';
+import { loadSubtasks, subtaskHandlers, draftHandlers } from '../utils/subtasks';
+import RecurrenceFields from '../components/RecurrenceFields';
+import useScheduleActions, { SCOPE_OPTIONS } from '../hooks/useScheduleActions';
+import { NO_REPEAT, describeRule } from '../utils/recurrence';
 
 function SchedulesPage({ user }) {
   const navigate = useNavigate();
@@ -20,6 +23,8 @@ function SchedulesPage({ user }) {
   const [expanded, setExpanded] = useState({});
   const [newSchedule, setNewSchedule] = useState({ title: '', startTime: '09:00', endTime: '10:00', category: 'Work', location: '', priority: 'medium', date: getLocalDateStr(), description: '' });
   const [editSchedule, setEditSchedule] = useState(null);
+  const [editScope, setEditScope] = useState('one');
+  const [repeat, setRepeat] = useState(NO_REPEAT);
 
   useEffect(() => {
     loadData();
@@ -30,48 +35,28 @@ function SchedulesPage({ user }) {
     setSubtasks(loadSubtasks());
   };
 
-  const deleteSchedule = (id) => {
-    const updated = schedules.filter(s => s.id !== id);
-    localStorage.setItem('schedules', JSON.stringify(updated));
-    setSchedules(updated);
-    setSubtasks(removeSubtasksForSchedule(subtasks, id));
-    toast.success('Schedule deleted');
-  };
+  const actions = useScheduleActions({ schedules, subtasks, setSchedules, setSubtasks });
 
   const addSchedule = () => {
-    if (!newSchedule.title) return toast.error('Please enter a title');
-    const schedule = { id: newId(), ...newSchedule, completed: false };
-    const updated = [...schedules, schedule];
-    localStorage.setItem('schedules', JSON.stringify(updated));
-    setSchedules(updated);
-    setSubtasks(addDraftSubtasks(subtasks, schedule.id, draftSubtasks));
+    if (!actions.add({ base: newSchedule, rule: repeat, drafts: draftSubtasks })) return;
     setDraftSubtasks([]);
+    setRepeat(NO_REPEAT);
     setModalOpen(false);
     setNewSchedule({ title: '', startTime: '09:00', endTime: '10:00', category: 'Work', location: '', priority: 'medium', date: getLocalDateStr(), description: '' });
-    toast.success('Schedule added!');
   };
 
   const updateSchedule = () => {
-    if (!editSchedule?.title) return toast.error('Please enter a title');
-    const updated = schedules.map(s => s.id === editSchedule.id ? editSchedule : s);
-    localStorage.setItem('schedules', JSON.stringify(updated));
-    setSchedules(updated);
-    setEditSchedule(null);
-    toast.success('Schedule updated!');
+    if (actions.save(editSchedule, editScope)) setEditSchedule(null);
+  };
+
+  const openEdit = (schedule) => {
+    setEditScope('one');
+    setEditSchedule(schedule);
   };
 
   const openDetail = (schedule) => {
     setSelectedSchedule(schedule);
     setDetailModalOpen(true);
-  };
-
-  const moveToDate = (date) => {
-    if (!editSchedule) return;
-    const updated = schedules.map(s => s.id === editSchedule.id ? { ...editSchedule, date } : s);
-    localStorage.setItem('schedules', JSON.stringify(updated));
-    setSchedules(updated);
-    setEditSchedule({ ...editSchedule, date });
-    toast.success('Moved to ' + date);
   };
 
   const getSubtasksForSchedule = (scheduleId) => subtasks.filter(st => st.scheduleId === scheduleId);
@@ -116,6 +101,11 @@ function SchedulesPage({ user }) {
                           <Text fw={600} size="lg">{schedule.title}</Text>
                           <Badge color={schedule.priority === 'high' ? 'red' : schedule.priority === 'medium' ? 'yellow' : 'blue'}>{schedule.priority}</Badge>
                           <Badge variant="light">{schedule.category}</Badge>
+                          {schedule.seriesId && (
+                            <Tooltip label={describeRule(schedule.recurrence)}>
+                              <Badge variant="light" color="grape" leftSection={<IconRepeat size={12} />}>Repeats</Badge>
+                            </Tooltip>
+                          )}
                           {sts.length > 0 && <Badge color="violet">{sts.filter(s=>s.completed).length}/{sts.length} tasks</Badge>}
                         </Group>
                         <Group gap="md">
@@ -126,8 +116,8 @@ function SchedulesPage({ user }) {
                         {schedule.description && <Text size="sm" c="dimmed">{schedule.description}</Text>}
                       </Stack>
                       <Group gap="xs" wrap="nowrap">
-                        <ActionIcon onClick={(e) => { e.stopPropagation(); setEditSchedule(schedule); }}><IconEdit size={16} /></ActionIcon>
-                        <ActionIcon color="red" onClick={(e) => { e.stopPropagation(); deleteSchedule(schedule.id); }}><IconTrash size={16} /></ActionIcon>
+                        <ActionIcon onClick={(e) => { e.stopPropagation(); openEdit(schedule); }}><IconEdit size={16} /></ActionIcon>
+                        <ActionIcon color="red" onClick={(e) => { e.stopPropagation(); actions.requestDelete(schedule); }}><IconTrash size={16} /></ActionIcon>
                         <IconChevronRight size={16} />
                       </Group>
                     </Group>
@@ -173,6 +163,7 @@ function SchedulesPage({ user }) {
           <TextInput label="Location" value={newSchedule.location} onChange={(e) => setNewSchedule({...newSchedule, location: e.target.value})} />
           <Select label="Priority" data={[{value:'high',label:'High'},{value:'medium',label:'Medium'},{value:'low',label:'Low'}]} value={newSchedule.priority} onChange={(v) => setNewSchedule({...newSchedule, priority: v})} />
           <Textarea label="Description" value={newSchedule.description} onChange={(e) => setNewSchedule({...newSchedule, description: e.target.value})} />
+          <RecurrenceFields value={repeat} onChange={setRepeat} startDate={newSchedule.date} />
           <SubtaskChecklist draft items={draftSubtasks} {...draftHandlers(draftSubtasks, setDraftSubtasks)} />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={() => setModalOpen(false)}>Cancel</Button>
@@ -199,7 +190,7 @@ function SchedulesPage({ user }) {
       <Modal opened={!!editSchedule} onClose={() => setEditSchedule(null)} title="Edit Schedule" centered>
         {editSchedule && <Stack gap="md">
           <TextInput label="Title" required value={editSchedule.title} onChange={(e) => setEditSchedule({...editSchedule, title: e.target.value})} />
-          <TextInput label="Move to Date" type="date" value={editSchedule.date} onChange={(e) => moveToDate(e.target.value)} />
+          <TextInput label="Date" type="date" value={editSchedule.date} onChange={(e) => setEditSchedule({ ...editSchedule, date: e.target.value })} />
           <Group grow>
             <TextInput label="Start Time" type="time" value={editSchedule.startTime} onChange={(e) => setEditSchedule({...editSchedule, startTime: e.target.value})} />
             <TextInput label="End Time" type="time" value={editSchedule.endTime} onChange={(e) => setEditSchedule({...editSchedule, endTime: e.target.value})} />
@@ -209,12 +200,20 @@ function SchedulesPage({ user }) {
           <Select label="Priority" data={[{value:'high',label:'High'},{value:'medium',label:'Medium'},{value:'low',label:'Low'}]} value={editSchedule.priority} onChange={(v) => setEditSchedule({...editSchedule, priority: v})} />
           <Textarea label="Description" value={editSchedule.description || ''} onChange={(e) => setEditSchedule({...editSchedule, description: e.target.value})} />
           <SubtaskChecklist items={getSubtasksForSchedule(editSchedule.id)} {...subtaskHandlers(subtasks, editSchedule.id, setSubtasks)} />
+          {editSchedule.seriesId && (
+            <Radio.Group label="Apply changes to" value={editScope} onChange={setEditScope} description="Date, completion and subtasks stay per event">
+              <Stack gap="xs" mt="xs">
+                {SCOPE_OPTIONS.map((o) => <Radio key={o.value} value={o.value} label={o.label} />)}
+              </Stack>
+            </Radio.Group>
+          )}
           <Group justify="flex-end">
             <Button variant="subtle" onClick={() => setEditSchedule(null)}>Cancel</Button>
             <Button onClick={updateSchedule}>Save</Button>
           </Group>
         </Stack>}
       </Modal>
+      {actions.deleteDialog}
     </Layout>
   );
 }

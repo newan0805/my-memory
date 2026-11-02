@@ -23,7 +23,7 @@ const countries = [
 function Onboarding({ onComplete }) {
   const navigate = useNavigate();
   const [active, setActive] = useState(0);
-  const isMobile = useMediaQuery('(max-width: 48em)');
+  const isMobile = useMediaQuery('(max-width: 47.99em)');
 
   useEffect(() => {
     document.title = 'Welcome · My Memory';

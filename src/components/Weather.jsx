@@ -1,6 +1,7 @@
 import React from 'react';
-import { Group, Stack, Text, Loader, Tooltip } from '@mantine/core';
-import { IconSun, IconMoon, IconCloud, IconCloudFog, IconCloudRain, IconSnowflake, IconCloudStorm, IconSunHigh, IconMapPin } from '@tabler/icons-react';
+import { Group, Stack, Text, Loader, Tooltip, ActionIcon } from '@mantine/core';
+import { IconSun, IconMoon, IconCloud, IconCloudFog, IconCloudRain, IconSnowflake, IconCloudStorm, IconSunHigh, IconMapPin, IconCloudOff } from '@tabler/icons-react';
+import { toast } from 'react-toastify';
 import { CONDITION_LABELS } from '../hooks/useWeather';
 
 const getIcon = (condition, isDay) => {
@@ -21,7 +22,13 @@ const ICON_COLORS = { clear: '#facc15', partly: '#fbbf24', snow: '#e0f2fe', stor
 // compact: single-line chip for the mobile header; otherwise a card for the sidebar.
 function Weather({ weather, error, compact = false }) {
   if (!weather) {
-    if (error) return compact ? null : <Text size="xs" c="dimmed">Weather unavailable</Text>;
+    if (error) {
+      return compact ? (
+        <ActionIcon variant="subtle" color="gray" aria-label="Weather unavailable" onClick={() => toast.info(`Weather unavailable: ${error}`)}>
+          <IconCloudOff size={18} />
+        </ActionIcon>
+      ) : <Text size="xs" c="dimmed">Weather unavailable</Text>;
+    }
     return <Loader size="xs" color="blue" />;
   }
 

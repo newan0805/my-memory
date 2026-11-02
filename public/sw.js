@@ -2,9 +2,17 @@
 const CACHE_NAME = 'my-memory-v3';
 const APP_SHELL = ['/', '/manifest.json', '/favicon.svg', '/icon-192.png', '/icon-512.png'];
 
+// Caches from service workers that predate the in-app "Update" prompt.
+const LEGACY_CACHES = ['my-memory-v1', 'my-memory-v2'];
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
-  // No skipWaiting() here: the app asks the user before switching to a new version.
+  event.waitUntil((async () => {
+    await (await caches.open(CACHE_NAME)).addAll(APP_SHELL);
+    // Normally the app asks the user before switching versions. Pages served by the legacy worker
+    // can't show that prompt, so take over immediately once to get them off the stale version.
+    const legacy = await Promise.all(LEGACY_CACHES.map((name) => caches.has(name)));
+    if (legacy.some(Boolean)) await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('message', (event) => {
