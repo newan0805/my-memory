@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Title, Text, Card, Group, Stack, Button, Badge, Paper, ActionIcon, Modal, TextInput, Select, Progress, Checkbox, Textarea } from '@mantine/core';
-import { IconArrowLeft, IconPlus, IconTrash, IconClock, IconMapPin, IconEdit, IconChevronRight } from '@tabler/icons-react';
+import { Container, Title, Text, Card, Group, Stack, Button, Badge, Paper, ActionIcon, Modal, TextInput, Select, Progress, Textarea, Collapse } from '@mantine/core';
+import { IconArrowLeft, IconPlus, IconTrash, IconClock, IconMapPin, IconEdit, IconChevronRight, IconChevronDown, IconSubtask } from '@tabler/icons-react';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
+import { getLocalDateStr } from '../utils/date';
+import SubtaskChecklist from '../components/SubtaskChecklist';
+import DateFilter, { useDateFilter, getDateRange, isInRange, sortByDate } from '../components/DateFilter';
+import { loadSubtasks, addDraftSubtasks, removeSubtasksForSchedule, subtaskHandlers, draftHandlers, newId } from '../utils/subtasks';
 
 function SchedulesPage({ user }) {
   const navigate = useNavigate();
@@ -12,8 +16,9 @@ function SchedulesPage({ user }) {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [subtasks, setSubtasks] = useState([]);
-  const [newSubtask, setNewSubtask] = useState({ title: '', description: '' });
-  const [newSchedule, setNewSchedule] = useState({ title: '', startTime: '09:00', endTime: '10:00', category: 'Work', location: '', priority: 'medium', date: new Date().toISOString().split('T')[0], description: '' });
+  const [draftSubtasks, setDraftSubtasks] = useState([]);
+  const [expanded, setExpanded] = useState({});
+  const [newSchedule, setNewSchedule] = useState({ title: '', startTime: '09:00', endTime: '10:00', category: 'Work', location: '', priority: 'medium', date: getLocalDateStr(), description: '' });
   const [editSchedule, setEditSchedule] = useState(null);
 
   useEffect(() => {
@@ -22,24 +27,27 @@ function SchedulesPage({ user }) {
 
   const loadData = () => {
     setSchedules(JSON.parse(localStorage.getItem('schedules') || '[]'));
-    setSubtasks(JSON.parse(localStorage.getItem('subtasks') || '[]'));
+    setSubtasks(loadSubtasks());
   };
 
   const deleteSchedule = (id) => {
     const updated = schedules.filter(s => s.id !== id);
     localStorage.setItem('schedules', JSON.stringify(updated));
     setSchedules(updated);
+    setSubtasks(removeSubtasksForSchedule(subtasks, id));
     toast.success('Schedule deleted');
   };
 
   const addSchedule = () => {
     if (!newSchedule.title) return toast.error('Please enter a title');
-    const schedule = { id: Date.now(), ...newSchedule, completed: false };
+    const schedule = { id: newId(), ...newSchedule, completed: false };
     const updated = [...schedules, schedule];
     localStorage.setItem('schedules', JSON.stringify(updated));
     setSchedules(updated);
+    setSubtasks(addDraftSubtasks(subtasks, schedule.id, draftSubtasks));
+    setDraftSubtasks([]);
     setModalOpen(false);
-    setNewSchedule({ title: '', startTime: '09:00', endTime: '10:00', category: 'Work', location: '', priority: 'medium', date: new Date().toISOString().split('T')[0], description: '' });
+    setNewSchedule({ title: '', startTime: '09:00', endTime: '10:00', category: 'Work', location: '', priority: 'medium', date: getLocalDateStr(), description: '' });
     toast.success('Schedule added!');
   };
 
@@ -55,29 +63,6 @@ function SchedulesPage({ user }) {
   const openDetail = (schedule) => {
     setSelectedSchedule(schedule);
     setDetailModalOpen(true);
-  };
-
-  const addSubtask = () => {
-    if (!newSubtask.title) return toast.error('Please enter title');
-    const subtask = { id: Date.now(), scheduleId: selectedSchedule.id, title: newSubtask.title, description: newSubtask.description, completed: false, createdAt: new Date().toISOString() };
-    const updated = [...subtasks, subtask];
-    localStorage.setItem('subtasks', JSON.stringify(updated));
-    setSubtasks(updated);
-    setNewSubtask({ title: '', description: '' });
-    toast.success('Subtask added!');
-  };
-
-  const toggleSubtask = (id) => {
-    const updated = subtasks.map(st => st.id === id ? { ...st, completed: !st.completed } : st);
-    localStorage.setItem('subtasks', JSON.stringify(updated));
-    setSubtasks(updated);
-  };
-
-  const deleteSubtask = (id) => {
-    const updated = subtasks.filter(st => st.id !== id);
-    localStorage.setItem('subtasks', JSON.stringify(updated));
-    setSubtasks(updated);
-    toast.success('Subtask deleted');
   };
 
   const moveToDate = (date) => {
@@ -97,7 +82,9 @@ function SchedulesPage({ user }) {
     return Math.round((done / sts.length) * 100);
   };
 
-  const sorted = [...schedules].sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+  const [filter, setFilter] = useDateFilter('schedules', { preset: 'week', sort: 'asc' });
+  const range = getDateRange(filter);
+  const sorted = sortByDate(schedules.filter(s => isInRange(s.date, range)), filter.sort, s => s.date, s => s.startTime);
 
   return (
     <Layout user={user}>
@@ -109,9 +96,11 @@ function SchedulesPage({ user }) {
           </Stack>
           <Group>
             <Button leftSection={<IconPlus size={16} />} onClick={() => setModalOpen(true)}>Add Schedule</Button>
-            <Button variant="subtle" leftSection={<IconArrowLeft size={16} />} onClick={() => navigate('/')}>Back</Button>
+            <Button variant="subtle" visibleFrom="sm" leftSection={<IconArrowLeft size={16} />} onClick={() => navigate('/')}>Back</Button>
           </Group>
         </Group>
+
+        <DateFilter value={filter} onChange={setFilter} />
 
         <Card withBorder padding="lg" style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(10px)' }}>
           <Stack gap="md">
@@ -121,8 +110,8 @@ function SchedulesPage({ user }) {
               return (
                 <Paper key={schedule.id} p="md" withBorder style={{ cursor: 'pointer' }} onClick={() => openDetail(schedule)}>
                   <Stack gap="sm">
-                    <Group justify="space-between" align="flex-start">
-                      <Stack gap={4} style={{ flex: 1 }}>
+                    <Group justify="space-between" align="flex-start" wrap="nowrap">
+                      <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
                         <Group gap="xs">
                           <Text fw={600} size="lg">{schedule.title}</Text>
                           <Badge color={schedule.priority === 'high' ? 'red' : schedule.priority === 'medium' ? 'yellow' : 'blue'}>{schedule.priority}</Badge>
@@ -136,28 +125,35 @@ function SchedulesPage({ user }) {
                         </Group>
                         {schedule.description && <Text size="sm" c="dimmed">{schedule.description}</Text>}
                       </Stack>
-                      <Group gap="xs">
+                      <Group gap="xs" wrap="nowrap">
                         <ActionIcon onClick={(e) => { e.stopPropagation(); setEditSchedule(schedule); }}><IconEdit size={16} /></ActionIcon>
                         <ActionIcon color="red" onClick={(e) => { e.stopPropagation(); deleteSchedule(schedule.id); }}><IconTrash size={16} /></ActionIcon>
                         <IconChevronRight size={16} />
                       </Group>
                     </Group>
-                    {sts.length > 0 && (
-                      <Stack gap="xs">
-                        <Group justify="space-between">
-                          <Text size="sm" c="dimmed">Subtasks Progress</Text>
-                          <Text size="sm" fw={500}>{progress}%</Text>
-                        </Group>
-                        <Progress value={progress} color={progress === 100 ? 'green' : 'blue'} size="sm" />
-                      </Stack>
+                    {sts.length > 0 && !expanded[schedule.id] && (
+                      <Progress value={progress} color={progress === 100 ? 'green' : 'blue'} size="sm" />
                     )}
+                    <Button
+                      variant="subtle"
+                      size="compact-sm"
+                      leftSection={<IconSubtask size={14} />}
+                      rightSection={expanded[schedule.id] ? <IconChevronDown size={14} style={{ transform: 'rotate(180deg)' }} /> : <IconChevronDown size={14} />}
+                      onClick={(e) => { e.stopPropagation(); setExpanded({ ...expanded, [schedule.id]: !expanded[schedule.id] }); }}
+                      style={{ alignSelf: 'flex-start' }}
+                    >
+                      {sts.length > 0 ? `Subtasks ${sts.filter((st) => st.completed).length}/${sts.length}` : 'Add subtasks'}
+                    </Button>
+                    <Collapse in={!!expanded[schedule.id]}>
+                      <SubtaskChecklist items={sts} {...subtaskHandlers(subtasks, schedule.id, setSubtasks)} />
+                    </Collapse>
                   </Stack>
                 </Paper>
               );
             })}
-            {schedules.length === 0 && (
+            {sorted.length === 0 && (
               <Stack align="center" py="xl">
-                <Text c="dimmed">No schedules yet. Add your first schedule!</Text>
+                <Text c="dimmed">{schedules.length === 0 ? 'No schedules yet. Add your first schedule!' : 'No schedules in this date range.'}</Text>
                 <Button leftSection={<IconPlus size={16} />} onClick={() => setModalOpen(true)}>Add Schedule</Button>
               </Stack>
             )}
@@ -177,6 +173,7 @@ function SchedulesPage({ user }) {
           <TextInput label="Location" value={newSchedule.location} onChange={(e) => setNewSchedule({...newSchedule, location: e.target.value})} />
           <Select label="Priority" data={[{value:'high',label:'High'},{value:'medium',label:'Medium'},{value:'low',label:'Low'}]} value={newSchedule.priority} onChange={(v) => setNewSchedule({...newSchedule, priority: v})} />
           <Textarea label="Description" value={newSchedule.description} onChange={(e) => setNewSchedule({...newSchedule, description: e.target.value})} />
+          <SubtaskChecklist draft items={draftSubtasks} {...draftHandlers(draftSubtasks, setDraftSubtasks)} />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={() => setModalOpen(false)}>Cancel</Button>
             <Button onClick={addSchedule}>Add Schedule</Button>
@@ -194,31 +191,7 @@ function SchedulesPage({ user }) {
               {selectedSchedule.location && <Text size="sm" c="dimmed">📍 {selectedSchedule.location}</Text>}
             </Group>
             {selectedSchedule.description && <Text>{selectedSchedule.description}</Text>}
-            <Text fw={600}>Subtasks ({getSubtasksForSchedule(selectedSchedule.id).filter(s=>s.completed).length}/{getSubtasksForSchedule(selectedSchedule.id).length})</Text>
-            <Stack gap="xs">
-              {getSubtasksForSchedule(selectedSchedule.id).map(st => (
-                <Paper key={st.id} p="sm" withBorder>
-                  <Group justify="space-between">
-                    <Group gap="sm" style={{ flex: 1 }}>
-                      <Checkbox checked={st.completed} onChange={() => toggleSubtask(st.id)} />
-                      <Stack gap={2} style={{ flex: 1 }}>
-                        <Text fw={500} td={st.completed ? 'line-through' : 'none'} c={st.completed ? 'dimmed' : undefined}>{st.title}</Text>
-                        {st.description && <Text size="sm" c="dimmed">{st.description}</Text>}
-                      </Stack>
-                    </Group>
-                    <ActionIcon color="red" size="sm" onClick={() => deleteSubtask(st.id)}><IconTrash size={14} /></ActionIcon>
-                  </Group>
-                </Paper>
-              ))}
-            </Stack>
-            <Card withBorder p="sm">
-              <Stack gap="xs">
-                <Text fw={500}>Add Subtask</Text>
-                <TextInput placeholder="Subtask title" value={newSubtask.title} onChange={(e) => setNewSubtask({...newSubtask, title: e.target.value})} />
-                <Textarea placeholder="Description (optional)" value={newSubtask.description} onChange={(e) => setNewSubtask({...newSubtask, description: e.target.value})} />
-                <Button size="sm" onClick={addSubtask}>Add Subtask</Button>
-              </Stack>
-            </Card>
+            <SubtaskChecklist items={getSubtasksForSchedule(selectedSchedule.id)} {...subtaskHandlers(subtasks, selectedSchedule.id, setSubtasks)} />
           </Stack>
         )}
       </Modal>
@@ -235,6 +208,7 @@ function SchedulesPage({ user }) {
           <TextInput label="Location" value={editSchedule.location || ''} onChange={(e) => setEditSchedule({...editSchedule, location: e.target.value})} />
           <Select label="Priority" data={[{value:'high',label:'High'},{value:'medium',label:'Medium'},{value:'low',label:'Low'}]} value={editSchedule.priority} onChange={(v) => setEditSchedule({...editSchedule, priority: v})} />
           <Textarea label="Description" value={editSchedule.description || ''} onChange={(e) => setEditSchedule({...editSchedule, description: e.target.value})} />
+          <SubtaskChecklist items={getSubtasksForSchedule(editSchedule.id)} {...subtaskHandlers(subtasks, editSchedule.id, setSubtasks)} />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={() => setEditSchedule(null)}>Cancel</Button>
             <Button onClick={updateSchedule}>Save</Button>

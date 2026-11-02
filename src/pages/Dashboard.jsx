@@ -39,6 +39,8 @@ import {
 import { toast } from 'react-toastify';
 import { motion } from 'framer-motion';
 import Layout from '../components/Layout';
+import SubtaskChecklist from '../components/SubtaskChecklist';
+import { loadSubtasks, addDraftSubtasks, removeSubtasksForSchedule, subtaskHandlers, draftHandlers, newId } from '../utils/subtasks';
 
 function timeToMinutes(timeStr) {
   if (!timeStr) return 0;
@@ -64,7 +66,7 @@ function Dashboard({ user }) {
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
-  const [newSubtask, setNewSubtask] = useState({ title: '', description: '' });
+  const [draftSubtasks, setDraftSubtasks] = useState([]);
   const [newTodo, setNewTodo] = useState({ title: '', priority: 'medium', dueTime: '09:00', category: 'Personal' });
   const [newSchedule, setNewSchedule] = useState({ title: '', startTime: '09:00', endTime: '10:00', category: 'Work', location: '', priority: 'medium', description: '' });
 
@@ -80,7 +82,7 @@ function Dashboard({ user }) {
   const loadData = () => {
     setSchedules(JSON.parse(localStorage.getItem('schedules') || '[]'));
     setTodos(JSON.parse(localStorage.getItem('todos') || '[]'));
-    setSubtasks(JSON.parse(localStorage.getItem('subtasks') || '[]'));
+    setSubtasks(loadSubtasks());
   };
 
   const toLocalDateStr = (date) => {
@@ -158,6 +160,7 @@ function Dashboard({ user }) {
     const updated = schedules.filter(s => s.id !== id);
     localStorage.setItem('schedules', JSON.stringify(updated));
     setSchedules(updated);
+    setSubtasks(removeSubtasksForSchedule(subtasks, id));
     toast.success('Schedule deleted');
   };
 
@@ -181,10 +184,12 @@ function Dashboard({ user }) {
 
   const addSchedule = () => {
     if (!newSchedule.title) return toast.error('Please enter a title');
-    const schedule = { id: Date.now(), ...newSchedule, date: getTodayStr(), completed: false };
+    const schedule = { id: newId(), ...newSchedule, date: getTodayStr(), completed: false };
     const updated = [...schedules, schedule];
     localStorage.setItem('schedules', JSON.stringify(updated));
     setSchedules(updated);
+    setSubtasks(addDraftSubtasks(subtasks, schedule.id, draftSubtasks));
+    setDraftSubtasks([]);
     setScheduleModalOpen(false);
     setNewSchedule({ title: '', startTime: '09:00', endTime: '10:00', category: 'Work', location: '', priority: 'medium', description: '' });
     toast.success('Schedule added!');
@@ -197,28 +202,6 @@ function Dashboard({ user }) {
 
   const getSubtasksForSchedule = (scheduleId) => subtasks.filter(st => st.scheduleId === scheduleId);
   
-  const addSubtask = () => {
-    if (!newSubtask.title) return toast.error('Please enter title');
-    const subtask = { id: Date.now(), scheduleId: selectedSchedule.id, title: newSubtask.title, description: newSubtask.description, completed: false };
-    const updated = [...subtasks, subtask];
-    localStorage.setItem('subtasks', JSON.stringify(updated));
-    setSubtasks(updated);
-    setNewSubtask({ title: '', description: '' });
-    toast.success('Subtask added!');
-  };
-
-  const toggleSubtask = (id) => {
-    const updated = subtasks.map(st => st.id === id ? { ...st, completed: !st.completed } : st);
-    localStorage.setItem('subtasks', JSON.stringify(updated));
-    setSubtasks(updated);
-  };
-
-  const deleteSubtask = (id) => {
-    const updated = subtasks.filter(st => st.id !== id);
-    localStorage.setItem('subtasks', JSON.stringify(updated));
-    setSubtasks(updated);
-  };
-
   const getScheduleProgress = (scheduleId) => {
     const sts = getSubtasksForSchedule(scheduleId);
     if (sts.length === 0) return 0;
@@ -236,9 +219,8 @@ function Dashboard({ user }) {
           <Stack gap={4}>
             <Title order={1}>{greeting}, {user.firstName} <IconSun size={32} style={{ verticalAlign: 'middle', color: '#f59e0b' }} /></Title>
             <Text c="dimmed">{now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</Text>
-            <Text c="dimmed" size="sm">Day of week: {now.toLocaleDateString('en-US', { weekday: 'long' })}</Text>
           </Stack>
-          <Stack gap={4} align="flex-end">
+          <Stack gap={4} align="flex-end" visibleFrom="xs">
             <Title order={1} style={{ background: 'linear-gradient(45deg, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</Title>
             <Text c="dimmed" size="sm">Current time</Text>
           </Stack>
@@ -388,7 +370,7 @@ function Dashboard({ user }) {
                           <Paper key={todo.id} p="sm" withBorder style={{ background: 'rgba(239, 68, 68, 0.08)' }}>
                             <Group align="flex-start">
                               <Checkbox checked={todo.completed} onChange={() => toggleTodo(todo.id)} mt={2} />
-                              <Stack gap={4} style={{ flex: 1 }}>
+                              <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
                                 <Group justify="space-between">
                                   <Text td={todo.completed ? 'line-through' : 'none'} c={todo.completed ? 'dimmed' : undefined}>{todo.title}</Text>
                                   <ActionIcon size="sm" color="red" variant="subtle" onClick={() => deleteTodo(todo.id)}><IconTrash size={14} /></ActionIcon>
@@ -411,7 +393,7 @@ function Dashboard({ user }) {
                           <Paper key={todo.id} p="sm" withBorder style={{ background: 'rgba(245, 158, 11, 0.08)' }}>
                             <Group align="flex-start">
                               <Checkbox checked={todo.completed} onChange={() => toggleTodo(todo.id)} mt={2} />
-                              <Stack gap={4} style={{ flex: 1 }}>
+                              <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
                                 <Group justify="space-between">
                                   <Text td={todo.completed ? 'line-through' : 'none'} c={todo.completed ? 'dimmed' : undefined}>{todo.title}</Text>
                                   <ActionIcon size="sm" color="red" variant="subtle" onClick={() => deleteTodo(todo.id)}><IconTrash size={14} /></ActionIcon>
@@ -434,7 +416,7 @@ function Dashboard({ user }) {
                           <Paper key={todo.id} p="sm" withBorder style={{ background: 'rgba(59, 130, 246, 0.08)' }}>
                             <Group align="flex-start">
                               <Checkbox checked={todo.completed} onChange={() => toggleTodo(todo.id)} mt={2} />
-                              <Stack gap={4} style={{ flex: 1 }}>
+                              <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
                                 <Group justify="space-between">
                                   <Text td={todo.completed ? 'line-through' : 'none'} c={todo.completed ? 'dimmed' : undefined}>{todo.title}</Text>
                                   <ActionIcon size="sm" color="red" variant="subtle" onClick={() => deleteTodo(todo.id)}><IconTrash size={14} /></ActionIcon>
@@ -566,6 +548,7 @@ function Dashboard({ user }) {
           <TextInput label="Location" placeholder="Enter location (optional)" value={newSchedule.location} onChange={(e) => setNewSchedule({...newSchedule, location: e.target.value})} />
           <Select label="Priority" data={[{value:'high',label:'High'},{value:'medium',label:'Medium'},{value:'low',label:'Low'}]} value={newSchedule.priority} onChange={(v) => setNewSchedule({...newSchedule, priority: v})} />
           <Textarea label="Description" value={newSchedule.description} onChange={(e) => setNewSchedule({...newSchedule, description: e.target.value})} />
+          <SubtaskChecklist draft items={draftSubtasks} {...draftHandlers(draftSubtasks, setDraftSubtasks)} />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={() => setScheduleModalOpen(false)}>Cancel</Button>
             <Button onClick={addSchedule}>Add Schedule</Button>
@@ -583,31 +566,7 @@ function Dashboard({ user }) {
               {selectedSchedule.location && <Text size="sm" c="dimmed">📍 {selectedSchedule.location}</Text>}
             </Group>
             {selectedSchedule.description && <Text>{selectedSchedule.description}</Text>}
-            <Text fw={600}>Subtasks ({getSubtasksForSchedule(selectedSchedule.id).filter(s=>s.completed).length}/{getSubtasksForSchedule(selectedSchedule.id).length})</Text>
-            <Stack gap="xs">
-              {getSubtasksForSchedule(selectedSchedule.id).map(st => (
-                <Paper key={st.id} p="sm" withBorder>
-                  <Group justify="space-between">
-                    <Group gap="sm" style={{ flex: 1 }}>
-                      <Checkbox checked={st.completed} onChange={() => toggleSubtask(st.id)} />
-                      <Stack gap={2} style={{ flex: 1 }}>
-                        <Text fw={500} td={st.completed ? 'line-through' : 'none'} c={st.completed ? 'dimmed' : undefined}>{st.title}</Text>
-                        {st.description && <Text size="sm" c="dimmed">{st.description}</Text>}
-                      </Stack>
-                    </Group>
-                    <ActionIcon color="red" size="sm" onClick={() => deleteSubtask(st.id)}><IconTrash size={14} /></ActionIcon>
-                  </Group>
-                </Paper>
-              ))}
-            </Stack>
-            <Card withBorder p="sm">
-              <Stack gap="xs">
-                <Text fw={500}>Add Subtask</Text>
-                <TextInput placeholder="Subtask title" value={newSubtask.title} onChange={(e) => setNewSubtask({...newSubtask, title: e.target.value})} />
-                <Textarea placeholder="Description (optional)" value={newSubtask.description} onChange={(e) => setNewSubtask({...newSubtask, description: e.target.value})} />
-                <Button size="sm" onClick={addSubtask}>Add Subtask</Button>
-              </Stack>
-            </Card>
+            <SubtaskChecklist items={getSubtasksForSchedule(selectedSchedule.id)} {...subtaskHandlers(subtasks, selectedSchedule.id, setSubtasks)} />
             <Button variant="light" onClick={() => { setDetailModalOpen(false); navigate('/schedules'); }}>Manage in Schedules Page</Button>
           </Stack>
         )}

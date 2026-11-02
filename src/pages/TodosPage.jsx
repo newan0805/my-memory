@@ -4,12 +4,14 @@ import { Container, Title, Text, Card, Group, Stack, Button, Badge, Checkbox, Pa
 import { IconArrowLeft, IconPlus, IconTrash, IconChecklist } from '@tabler/icons-react';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
+import { getLocalDateStr } from '../utils/date';
+import DateFilter, { useDateFilter, getDateRange, isInRange, sortByDate } from '../components/DateFilter';
 
 function TodosPage({ user }) {
   const navigate = useNavigate();
   const [todos, setTodos] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [newTodo, setNewTodo] = useState({ title: '', priority: 'medium', dueTime: '09:00', category: 'Personal', dueDate: new Date().toISOString().split('T')[0] });
+  const [newTodo, setNewTodo] = useState({ title: '', priority: 'medium', dueTime: '09:00', category: 'Personal', dueDate: getLocalDateStr() });
 
   useEffect(() => {
     setTodos(JSON.parse(localStorage.getItem('todos') || '[]'));
@@ -36,13 +38,21 @@ function TodosPage({ user }) {
     localStorage.setItem('todos', JSON.stringify(updated));
     setTodos(updated);
     setModalOpen(false);
-    setNewTodo({ title: '', priority: 'medium', dueTime: '09:00', category: 'Personal', dueDate: new Date().toISOString().split('T')[0] });
+    setNewTodo({ title: '', priority: 'medium', dueTime: '09:00', category: 'Personal', dueDate: getLocalDateStr() });
     toast.success('Todo added!');
   };
 
-  const highTodos = todos.filter(t => t.priority === 'high');
-  const mediumTodos = todos.filter(t => t.priority === 'medium');
-  const lowTodos = todos.filter(t => t.priority === 'low');
+  const [filter, setFilter] = useDateFilter('todos');
+  const range = getDateRange(filter);
+  const today = getLocalDateStr();
+  // "Today" also keeps unfinished overdue tasks visible so they aren't forgotten.
+  const visibleTodos = sortByDate(
+    todos.filter(t => isInRange(t.dueDate, range) || (filter.preset === 'today' && !t.completed && t.dueDate && t.dueDate < today)),
+    filter.sort, t => t.dueDate, t => t.dueTime
+  );
+  const highTodos = visibleTodos.filter(t => t.priority === 'high');
+  const mediumTodos = visibleTodos.filter(t => t.priority === 'medium');
+  const lowTodos = visibleTodos.filter(t => t.priority === 'low');
 
   return (
     <Layout user={user}>
@@ -54,9 +64,11 @@ function TodosPage({ user }) {
           </Stack>
           <Group>
             <Button leftSection={<IconPlus size={16} />} onClick={() => setModalOpen(true)}>Add Todo</Button>
-            <Button variant="subtle" leftSection={<IconArrowLeft size={16} />} onClick={() => navigate('/')}>Back</Button>
+            <Button variant="subtle" visibleFrom="sm" leftSection={<IconArrowLeft size={16} />} onClick={() => navigate('/')}>Back</Button>
           </Group>
         </Group>
+
+        <DateFilter value={filter} onChange={setFilter} />
 
         <Card withBorder padding="lg" style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(10px)' }}>
           <Stack gap="lg">
@@ -65,16 +77,16 @@ function TodosPage({ user }) {
                 <Text fw={600} size="lg">🔥 High Priority ({highTodos.length})</Text>
                 {highTodos.map(todo => (
                   <Paper key={todo.id} p="md" withBorder style={{ background: 'rgba(239, 68, 68, 0.05)' }}>
-                    <Group align="flex-start">
+                    <Group align="flex-start" wrap="nowrap">
                       <Checkbox checked={todo.completed} onChange={() => toggleTodo(todo.id)} mt={2} />
-                      <Stack gap={4} style={{ flex: 1 }}>
-                        <Group justify="space-between">
-                          <Text fw={500} td={todo.completed ? 'line-through' : 'none'} c={todo.completed ? 'dimmed' : undefined}>{todo.title}</Text>
+                      <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
+                        <Group justify="space-between" wrap="nowrap" align="flex-start">
+                          <Text fw={500} style={{ flex: 1, minWidth: 0 }} td={todo.completed ? 'line-through' : 'none'} c={todo.completed ? 'dimmed' : undefined}>{todo.title}</Text>
                           <ActionIcon color="red" variant="subtle" onClick={() => deleteTodo(todo.id)}><IconTrash size={16} /></ActionIcon>
                         </Group>
                         <Group gap="xs">
                           <Badge color="red">High</Badge>
-                          <Text size="sm" c="dimmed">Due: {todo.dueDate} {todo.dueTime}</Text>
+                          <Text size="sm" c={!todo.completed && todo.dueDate < today ? 'red' : 'dimmed'}>Due: {todo.dueDate} {todo.dueTime}</Text>
                           <Text size="sm" c="dimmed">{todo.category}</Text>
                         </Group>
                       </Stack>
@@ -88,16 +100,16 @@ function TodosPage({ user }) {
                 <Text fw={600} size="lg">⚡ Medium Priority ({mediumTodos.length})</Text>
                 {mediumTodos.map(todo => (
                   <Paper key={todo.id} p="md" withBorder>
-                    <Group align="flex-start">
+                    <Group align="flex-start" wrap="nowrap">
                       <Checkbox checked={todo.completed} onChange={() => toggleTodo(todo.id)} mt={2} />
-                      <Stack gap={4} style={{ flex: 1 }}>
-                        <Group justify="space-between">
-                          <Text fw={500} td={todo.completed ? 'line-through' : 'none'} c={todo.completed ? 'dimmed' : undefined}>{todo.title}</Text>
+                      <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
+                        <Group justify="space-between" wrap="nowrap" align="flex-start">
+                          <Text fw={500} style={{ flex: 1, minWidth: 0 }} td={todo.completed ? 'line-through' : 'none'} c={todo.completed ? 'dimmed' : undefined}>{todo.title}</Text>
                           <ActionIcon color="red" variant="subtle" onClick={() => deleteTodo(todo.id)}><IconTrash size={16} /></ActionIcon>
                         </Group>
                         <Group gap="xs">
                           <Badge color="yellow">Medium</Badge>
-                          <Text size="sm" c="dimmed">Due: {todo.dueDate} {todo.dueTime}</Text>
+                          <Text size="sm" c={!todo.completed && todo.dueDate < today ? 'red' : 'dimmed'}>Due: {todo.dueDate} {todo.dueTime}</Text>
                           <Text size="sm" c="dimmed">{todo.category}</Text>
                         </Group>
                       </Stack>
@@ -111,16 +123,16 @@ function TodosPage({ user }) {
                 <Text fw={600} size="lg">📝 Low Priority ({lowTodos.length})</Text>
                 {lowTodos.map(todo => (
                   <Paper key={todo.id} p="md" withBorder>
-                    <Group align="flex-start">
+                    <Group align="flex-start" wrap="nowrap">
                       <Checkbox checked={todo.completed} onChange={() => toggleTodo(todo.id)} mt={2} />
-                      <Stack gap={4} style={{ flex: 1 }}>
-                        <Group justify="space-between">
-                          <Text fw={500} td={todo.completed ? 'line-through' : 'none'} c={todo.completed ? 'dimmed' : undefined}>{todo.title}</Text>
+                      <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
+                        <Group justify="space-between" wrap="nowrap" align="flex-start">
+                          <Text fw={500} style={{ flex: 1, minWidth: 0 }} td={todo.completed ? 'line-through' : 'none'} c={todo.completed ? 'dimmed' : undefined}>{todo.title}</Text>
                           <ActionIcon color="red" variant="subtle" onClick={() => deleteTodo(todo.id)}><IconTrash size={16} /></ActionIcon>
                         </Group>
                         <Group gap="xs">
                           <Badge color="blue">Low</Badge>
-                          <Text size="sm" c="dimmed">Due: {todo.dueDate} {todo.dueTime}</Text>
+                          <Text size="sm" c={!todo.completed && todo.dueDate < today ? 'red' : 'dimmed'}>Due: {todo.dueDate} {todo.dueTime}</Text>
                           <Text size="sm" c="dimmed">{todo.category}</Text>
                         </Group>
                       </Stack>
@@ -129,9 +141,9 @@ function TodosPage({ user }) {
                 ))}
               </Stack>
             )}
-            {todos.length === 0 && (
+            {visibleTodos.length === 0 && (
               <Stack align="center" py="xl">
-                <Text c="dimmed">No todos yet. Add your first todo!</Text>
+                <Text c="dimmed">{todos.length === 0 ? 'No todos yet. Add your first todo!' : 'No todos for this date range.'}</Text>
                 <Button leftSection={<IconPlus size={16} />} onClick={() => setModalOpen(true)}>Add Todo</Button>
               </Stack>
             )}

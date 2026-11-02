@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
@@ -7,31 +8,53 @@ import Profile from './pages/Profile';
 import Calendar from './pages/Calendar';
 import TodosPage from './pages/TodosPage';
 import SchedulesPage from './pages/SchedulesPage';
+import TaskLog from './pages/TaskLog';
+import { getLastBackupAt } from './utils/storage';
 
-function App() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+const WEEK = 7 * 24 * 60 * 60 * 1000;
+const DAY = 24 * 60 * 60 * 1000;
+
+const readUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('userProfile') || 'null');
+  } catch {
+    return null;
+  }
+};
+
+function App({ restored }) {
+  const [user, setUser] = useState(readUser);
 
   useEffect(() => {
-    const userData = localStorage.getItem('userProfile');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
-    setLoading(false);
-  }, []);
+    if (restored) toast.success('Your data was restored from the on-device backup.');
+  }, [restored]);
 
-  if (loading) return null;
+  // Gentle weekly nudge to export a backup — the only protection against uninstalling the app.
+  useEffect(() => {
+    if (!user) return;
+    const lastBackup = getLastBackupAt();
+    const lastReminder = Number(localStorage.getItem('backupReminderAt')) || 0;
+    const hasData = (localStorage.getItem('todos') || '[]') !== '[]' || (localStorage.getItem('schedules') || '[]') !== '[]';
+    if (hasData && (!lastBackup || Date.now() - lastBackup > WEEK) && Date.now() - lastReminder > DAY) {
+      localStorage.setItem('backupReminderAt', String(Date.now()));
+      toast.info('Tip: export a backup in Settings → Backup & Restore so you never lose your data.', { autoClose: 8000 });
+    }
+  }, [user]);
+
+  const guard = (element) => (user ? element : <Navigate to="/onboarding" replace />);
 
   return (
     <Router>
       <Routes>
-        <Route path="/onboarding" element={<Onboarding onComplete={setUser} />} />
-        <Route path="/" element={user ? <Dashboard user={user} /> : <Navigate to="/onboarding" />} />
-        <Route path="/calendar" element={user ? <Calendar user={user} /> : <Navigate to="/onboarding" />} />
-        <Route path="/todos" element={user ? <TodosPage user={user} /> : <Navigate to="/onboarding" />} />
-        <Route path="/schedules" element={user ? <SchedulesPage user={user} /> : <Navigate to="/onboarding" />} />
-        <Route path="/settings" element={user ? <Settings user={user} setUser={setUser} /> : <Navigate to="/onboarding" />} />
-        <Route path="/profile" element={user ? <Profile user={user} setUser={setUser} /> : <Navigate to="/onboarding" />} />
+        <Route path="/onboarding" element={user ? <Navigate to="/" replace /> : <Onboarding onComplete={setUser} />} />
+        <Route path="/" element={guard(<Dashboard user={user} />)} />
+        <Route path="/calendar" element={guard(<Calendar user={user} />)} />
+        <Route path="/todos" element={guard(<TodosPage user={user} />)} />
+        <Route path="/schedules" element={guard(<SchedulesPage user={user} />)} />
+        <Route path="/tasklog" element={guard(<TaskLog user={user} />)} />
+        <Route path="/settings" element={guard(<Settings user={user} setUser={setUser} />)} />
+        <Route path="/profile" element={guard(<Profile user={user} setUser={setUser} />)} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Card, Title, Text, TextInput, Select, Button, Stack, Group, Avatar, Divider } from '@mantine/core';
-import { IconArrowLeft, IconUser, IconMail, IconMapPin } from '@tabler/icons-react';
+import { IconArrowLeft, IconUser, IconMail, IconMapPin, IconBuildingCommunity } from '@tabler/icons-react';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 
@@ -32,14 +32,14 @@ function Profile({ user, setUser }) {
   };
 
   return (
-    <Layout user={user} petVisible={petVisible} setPetVisible={setPetVisible} weatherVisible={weatherVisible} setWeatherVisible={setWeatherVisible}>
+    <Layout user={user}>
       <Stack gap="lg">
         <Group justify="space-between">
           <Stack gap={4}>
             <Title order={1}><IconUser size={32} style={{ verticalAlign: 'middle', marginRight: 8 }} />Profile</Title>
             <Text c="dimmed">Manage your personal information</Text>
           </Stack>
-          <Button variant="subtle" leftSection={<IconArrowLeft size={16} />} onClick={() => navigate('/')}>Back to Dashboard</Button>
+          <Button variant="subtle" visibleFrom="sm" leftSection={<IconArrowLeft size={16} />} onClick={() => navigate('/')}>Back to Dashboard</Button>
         </Group>
 
         <Card withBorder padding="xl" radius="lg" style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(10px)', maxWidth: 600 }}>
@@ -51,7 +51,7 @@ function Profile({ user, setUser }) {
               <Stack gap={4}>
                 <Title order={3}>{formData.firstName} {formData.lastName}</Title>
                 <Group gap="xs"><IconMail size={16} /><Text c="dimmed" size="sm">{formData.email || 'No email'}</Text></Group>
-                <Group gap="xs"><IconMapPin size={16} /><Text c="dimmed" size="sm">{countries.find(c => c.value === formData.country)?.label || formData.country || 'No country'}</Text></Group>
+                <Group gap="xs"><IconMapPin size={16} /><Text c="dimmed" size="sm">{[formData.city, countries.find(c => c.value === formData.country)?.label || formData.country].filter(Boolean).join(', ') || 'No location'}</Text></Group>
               </Stack>
             </Group>
 
@@ -84,6 +84,14 @@ function Profile({ user, setUser }) {
                 value={formData.country}
                 onChange={(value) => setFormData({ ...formData, country: value })}
                 searchable
+              />
+              <TextInput
+                label="City"
+                placeholder="e.g. Colombo"
+                description="Used for your local weather"
+                leftSection={<IconBuildingCommunity size={16} />}
+                value={formData.city || ''}
+                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
               />
             </Stack>
 

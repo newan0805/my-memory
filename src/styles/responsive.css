@@ -1,0 +1,73 @@
+/* App-wide responsive rules (Mantine "sm" breakpoint = 48em). */
+
+html {
+  background: #0f172a;
+}
+
+/* Mantine paints the body, which would hide the fixed time-of-day scene behind it. */
+body {
+  background: transparent !important;
+  overflow-x: clip;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Long titles/URLs must wrap instead of pushing the page sideways. */
+.mantine-Text-root,
+.mantine-Title-root {
+  overflow-wrap: anywhere;
+}
+
+/* Icons inside headings scale with the (fluid) heading size. */
+.mantine-Title-root > svg {
+  width: 1em;
+  height: 1em;
+}
+
+/* Room for the floating pet and the iPhone home indicator. */
+.mantine-AppShell-main {
+  padding-bottom: calc(88px + env(safe-area-inset-bottom));
+}
+
+.Toastify__toast-container--top-center,
+.Toastify__toast-container--top-right {
+  top: calc(1em + env(safe-area-inset-top));
+}
+
+@media (max-width: 48em) {
+  /* Dialogs become full-screen sheets on phones. */
+  .mantine-Modal-inner {
+    padding: 0 !important;
+  }
+  .mantine-Modal-content {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+    max-height: 100dvh !important;
+    height: 100dvh;
+    border-radius: 0 !important;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Tighter cards so content isn't squeezed by padding. */
+  .mantine-Card-root {
+    --card-padding: var(--mantine-spacing-sm) !important;
+  }
+
+  /* iOS zooms into inputs with text smaller than 16px. */
+  .mantine-Input-input,
+  .mantine-Select-input,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  .mantine-AppShell-main {
+    padding-left: var(--mantine-spacing-sm) !important;
+    padding-right: var(--mantine-spacing-sm) !important;
+  }
+}
+
+/* No hover "lift" effects on touch screens — they get stuck after a tap. */
+@media (hover: none) {
+  .mantine-Card-root {
+    transform: none !important;
+  }
+}

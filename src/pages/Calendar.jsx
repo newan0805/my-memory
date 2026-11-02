@@ -3,13 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { Container, Title, Text, Card, Group, Stack, Button, Badge, Grid, ActionIcon, Modal, TextInput, Select } from '@mantine/core';
 import { IconArrowLeft, IconChevronLeft, IconChevronRight, IconPlus, IconTrash, IconEdit } from '@tabler/icons-react';
 import { toast } from 'react-toastify';
+import { useMediaQuery } from '@mantine/hooks';
 import Layout from '../components/Layout';
+import SubtaskChecklist from '../components/SubtaskChecklist';
+import { loadSubtasks, addDraftSubtasks, removeSubtasksForSchedule, subtaskHandlers, draftHandlers, newId } from '../utils/subtasks';
 
 function Calendar({ user }) {
   const navigate = useNavigate();
+  const isMobile = useMediaQuery('(max-width: 48em)');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [schedules, setSchedules] = useState([]);
   const [todos, setTodos] = useState([]);
+  const [subtasks, setSubtasks] = useState([]);
+  const [draftSubtasks, setDraftSubtasks] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
   const [dayModalOpen, setDayModalOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
@@ -26,6 +32,7 @@ function Calendar({ user }) {
   const loadData = () => {
     setSchedules(JSON.parse(localStorage.getItem('schedules') || '[]'));
     setTodos(JSON.parse(localStorage.getItem('todos') || '[]'));
+    setSubtasks(loadSubtasks());
   };
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -59,10 +66,12 @@ function Calendar({ user }) {
 
   const addSchedule = () => {
     if (!newSchedule.title) return toast.error('Please enter a title');
-    const schedule = { id: Date.now(), ...newSchedule, date: selectedDate, completed: false };
+    const schedule = { id: newId(), ...newSchedule, date: selectedDate, completed: false };
     const updated = [...schedules, schedule];
     localStorage.setItem('schedules', JSON.stringify(updated));
     setSchedules(updated);
+    setSubtasks(addDraftSubtasks(subtasks, schedule.id, draftSubtasks));
+    setDraftSubtasks([]);
     setScheduleModalOpen(false);
     setNewSchedule({ title: '', startTime: '09:00', endTime: '10:00', category: 'Work', location: '', priority: 'medium' });
     toast.success('Schedule added!');
@@ -81,6 +90,7 @@ function Calendar({ user }) {
     const updated = schedules.filter(s => s.id !== id);
     localStorage.setItem('schedules', JSON.stringify(updated));
     setSchedules(updated);
+    setSubtasks(removeSubtasksForSchedule(subtasks, id));
     toast.success('Schedule deleted');
   };
 
@@ -122,19 +132,19 @@ function Calendar({ user }) {
   const dayTodosList = selectedDate ? todos.filter(t => t.dueDate === selectedDate) : [];
 
   return (
-    <Layout user={user} petId={petId} petVisible={petVisible} setPetVisible={setPetVisible} weatherVisible={weatherVisible} setWeatherVisible={setWeatherVisible}>
+    <Layout user={user}>
       <Stack gap="lg">
         <Group justify="space-between">
           <Stack gap={4}>
             <Title order={1}>Calendar</Title>
             <Text c="dimmed">Click on a day to view and manage events</Text>
           </Stack>
-          <Button variant="subtle" leftSection={<IconArrowLeft size={16} />} onClick={() => navigate('/')}>Back to Dashboard</Button>
+          <Button variant="subtle" visibleFrom="sm" leftSection={<IconArrowLeft size={16} />} onClick={() => navigate('/')}>Back to Dashboard</Button>
         </Group>
 
-        <Card withBorder padding="lg" style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(10px)' }}>
-          <Group justify="space-between" mb="lg">
-            <Title order={2}>{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</Title>
+        <Card withBorder padding={isMobile ? 'xs' : 'lg'} style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(10px)' }}>
+          <Group justify="space-between" mb="lg" wrap="nowrap">
+            <Title order={2} style={{ whiteSpace: 'nowrap' }}>{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</Title>
             <Group gap="xs">
               <ActionIcon variant="subtle" onClick={prevMonth}><IconChevronLeft size={18} /></ActionIcon>
               <Button variant="subtle" size="xs" onClick={today}>Today</Button>
@@ -142,39 +152,52 @@ function Calendar({ user }) {
             </Group>
           </Group>
 
-          <Grid gutter="xs">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <Grid.Col span={12/7} key={day}>
-                <Text ta="center" fw={600} c="dimmed" size="sm" py="xs">{day}</Text>
-              </Grid.Col>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: isMobile ? 4 : 8 }}>
+            {(isMobile ? ['S', 'M', 'T', 'W', 'T', 'F', 'S'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']).map((day, i) => (
+              <Text key={i} ta="center" fw={600} c="dimmed" size="sm" py="xs">{day}</Text>
             ))}
             {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-              <Grid.Col span={12/7} key={`empty-${i}`}><div style={{ height: 110 }} /></Grid.Col>
+              <div key={`empty-${i}`} />
             ))}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
               const { schedules: daySchedules, todos: dayTodos } = getDayItems(day);
               const isToday = currentDate.getMonth() === new Date().getMonth() && currentDate.getFullYear() === new Date().getFullYear() && day === new Date().getDate();
+              const priorityColor = (p) => (p === 'high' ? 'red' : p === 'medium' ? 'yellow' : 'blue');
+              const total = daySchedules.length + dayTodos.length;
               return (
-                <Grid.Col span={12/7} key={day}>
-                  <Card padding="xs" h={110} style={{ background: isToday ? 'rgba(59, 130, 246, 0.15)' : 'rgba(15, 23, 42, 0.5)', borderColor: isToday ? 'var(--mantine-color-blue-6)' : 'var(--mantine-color-dark-4)', cursor: 'pointer' }} onClick={() => openDay(day)}>
-                    <Text fw={isToday ? 700 : 500} c={isToday ? 'blue' : undefined} size="sm">{day}</Text>
+                <Card
+                  key={day}
+                  component="button"
+                  type="button"
+                  aria-label={`${monthNames[currentDate.getMonth()]} ${day}, ${total} item${total === 1 ? '' : 's'}`}
+                  padding={isMobile ? 4 : 'xs'}
+                  h={isMobile ? 56 : 110}
+                  onClick={() => openDay(day)}
+                  style={{ background: isToday ? 'rgba(59, 130, 246, 0.15)' : 'rgba(15, 23, 42, 0.5)', border: `1px solid ${isToday ? 'var(--mantine-color-blue-6)' : 'var(--mantine-color-dark-4)'}`, cursor: 'pointer', textAlign: 'left', color: 'inherit', overflow: 'hidden' }}
+                >
+                  <Text fw={isToday ? 700 : 500} c={isToday ? 'blue' : undefined} size="sm" ta={isMobile ? 'center' : undefined}>{day}</Text>
+                  {isMobile ? (
+                    <Group gap={3} justify="center" mt={6} wrap="nowrap">
+                      {[...daySchedules, ...dayTodos].slice(0, 3).map((item) => (
+                        <span key={`${item.id}-${item.title}`} style={{ width: 6, height: 6, borderRadius: '50%', background: `var(--mantine-color-${priorityColor(item.priority)}-5)` }} />
+                      ))}
+                    </Group>
+                  ) : (
                     <Stack gap={2} mt={4}>
                       {daySchedules.slice(0, 2).map(s => (
-                        <Badge key={s.id} size="xs" variant="light" color={s.priority === 'high' ? 'red' : s.priority === 'medium' ? 'yellow' : 'blue'}>{s.title.substring(0, 12)}</Badge>
+                        <Badge key={s.id} size="xs" variant="light" fullWidth color={priorityColor(s.priority)}>{s.title}</Badge>
                       ))}
                       {dayTodos.slice(0, 1).map(t => (
-                        <Badge key={t.id} size="xs" variant="dot" color={t.priority === 'high' ? 'red' : t.priority === 'medium' ? 'yellow' : 'blue'}>{t.title.substring(0, 12)}</Badge>
+                        <Badge key={t.id} size="xs" variant="dot" fullWidth color={priorityColor(t.priority)}>{t.title}</Badge>
                       ))}
-                      {(daySchedules.length + dayTodos.length) > 3 && (
-                        <Text size="xs" c="dimmed">+{(daySchedules.length + dayTodos.length) - 3}</Text>
-                      )}
+                      {total > 3 && <Text size="xs" c="dimmed">+{total - 3}</Text>}
                     </Stack>
-                  </Card>
-                </Grid.Col>
+                  )}
+                </Card>
               );
             })}
-          </Grid>
+          </div>
         </Card>
       </Stack>
 
@@ -189,7 +212,14 @@ function Calendar({ user }) {
             <Card key={s.id} padding="sm" withBorder>
               <Group justify="space-between">
                 <Stack gap={2}>
-                  <Text fw={500}>{s.title}</Text>
+                  <Group gap="xs">
+                    <Text fw={500}>{s.title}</Text>
+                    {(() => {
+                      const sts = subtasks.filter((st) => st.scheduleId === s.id);
+                      const done = sts.filter((st) => st.completed).length;
+                      return sts.length > 0 && <Badge size="xs" variant="light" color={done === sts.length ? 'green' : 'violet'}>{done}/{sts.length} subtasks</Badge>;
+                    })()}
+                  </Group>
                   <Text size="sm" c="dimmed">{s.startTime} - {s.endTime} {s.location && `• ${s.location}`}</Text>
                   <Group gap="xs"><Badge size="xs">{s.category}</Badge><Badge size="xs" color={s.priority === 'high' ? 'red' : s.priority === 'medium' ? 'yellow' : 'blue'}>{s.priority}</Badge></Group>
                 </Stack>
@@ -228,6 +258,7 @@ function Calendar({ user }) {
           <Select label="Category" data={[{value:'Work',label:'Work'},{value:'Personal',label:'Personal'},{value:'Fitness',label:'Fitness'},{value:'Project',label:'Project'},{value:'Tennis',label:'Tennis'}]} value={newSchedule.category} onChange={(v) => setNewSchedule({...newSchedule, category: v})} />
           <TextInput label="Location" value={newSchedule.location} onChange={(e) => setNewSchedule({...newSchedule, location: e.target.value})} />
           <Select label="Priority" data={[{value:'high',label:'High'},{value:'medium',label:'Medium'},{value:'low',label:'Low'}]} value={newSchedule.priority} onChange={(v) => setNewSchedule({...newSchedule, priority: v})} />
+          <SubtaskChecklist draft items={draftSubtasks} {...draftHandlers(draftSubtasks, setDraftSubtasks)} />
           <Group justify="flex-end"><Button variant="subtle" onClick={() => setScheduleModalOpen(false)}>Cancel</Button><Button onClick={addSchedule}>Add</Button></Group>
         </Stack>
       </Modal>
@@ -249,6 +280,7 @@ function Calendar({ user }) {
           <Select label="Category" data={[{value:'Work',label:'Work'},{value:'Personal',label:'Personal'},{value:'Fitness',label:'Fitness'},{value:'Project',label:'Project'},{value:'Tennis',label:'Tennis'}]} value={editSchedule.category} onChange={(v) => setEditSchedule({...editSchedule, category: v})} />
           <TextInput label="Location" value={editSchedule.location || ''} onChange={(e) => setEditSchedule({...editSchedule, location: e.target.value})} />
           <Select label="Priority" data={[{value:'high',label:'High'},{value:'medium',label:'Medium'},{value:'low',label:'Low'}]} value={editSchedule.priority} onChange={(v) => setEditSchedule({...editSchedule, priority: v})} />
+          <SubtaskChecklist items={subtasks.filter((st) => st.scheduleId === editSchedule.id)} {...subtaskHandlers(subtasks, editSchedule.id, setSubtasks)} />
           <Group justify="flex-end"><Button variant="subtle" onClick={() => setEditSchedule(null)}>Cancel</Button><Button onClick={updateSchedule}>Save</Button></Group>
         </Stack>}
       </Modal>
