@@ -18,6 +18,8 @@ function Settings({ user, setUser }) {
   const [petEmoji, setPetEmoji] = useState(preferences.customPetEmoji);
   const [remindersOn, setRemindersOn] = useState(() => notificationsEnabled());
   const [notificationPermission, setNotificationPermission] = useState(() => ('Notification' in window ? Notification.permission : 'unsupported'));
+  const [testEndsAt, setTestEndsAt] = useState(null);
+  const [testSecondsLeft, setTestSecondsLeft] = useState(0);
 
   const enableReminders = async () => {
     if (!('Notification' in window)) {
@@ -45,6 +47,41 @@ function Settings({ user, setUser }) {
     setRemindersOn(false);
     scheduleReminders();
   };
+
+  useEffect(() => {
+    if (!testEndsAt) return undefined;
+    const sendTest = async () => {
+      try {
+        let registration = await navigator.serviceWorker?.getRegistration();
+        if (!registration && 'serviceWorker' in navigator) registration = await navigator.serviceWorker.register('/sw.js');
+        const options = {
+          body: 'Notifications are working on this device.',
+          icon: '/icon-192.png',
+          tag: 'my-memory-test-notification',
+          data: { url: '/settings' },
+        };
+        if (registration?.showNotification) await registration.showNotification('My Memory test notification', options);
+        else new Notification('My Memory test notification', options);
+        toast.success('Test notification sent');
+      } catch {
+        toast.error('Could not send the test notification. Check notification permission and try again.');
+      }
+    };
+
+    let interval;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((testEndsAt - Date.now()) / 1000));
+      setTestSecondsLeft(left);
+      if (left === 0) {
+        clearInterval(interval);
+        setTestEndsAt(null);
+        sendTest();
+      }
+    };
+    tick();
+    interval = setInterval(tick, 250);
+    return () => clearInterval(interval);
+  }, [testEndsAt]);
 
   useEffect(() => setPetName(preferences.petName), [preferences.petName]);
   useEffect(() => setPetEmoji(preferences.customPetEmoji), [preferences.customPetEmoji]);
@@ -104,7 +141,6 @@ function Settings({ user, setUser }) {
               </Stack>
               <Switch defaultChecked disabled />
             </Group>
-
             <Divider />
 
             <Stack gap="xs">
@@ -125,6 +161,20 @@ function Settings({ user, setUser }) {
               </Stack>
               {remindersOn ? <Button variant="light" color="gray" onClick={disableReminders}>Turn off</Button> : <Button leftSection={<IconBell size={16} />} onClick={enableReminders}>Enable notifications</Button>}
             </Group>
+            <Stack gap="xs">
+              <Button
+                variant="light"
+                leftSection={<IconBell size={16} />}
+                disabled={!remindersOn || notificationPermission !== 'granted' || !!testEndsAt}
+                onClick={() => {
+                  setTestSecondsLeft(30);
+                  setTestEndsAt(Date.now() + 30_000);
+                }}
+              >
+                {testEndsAt ? `Sending test notification in ${testSecondsLeft}s` : 'Send test notification in 30 seconds'}
+              </Button>
+              <Text size="xs" c="dimmed">Keep My Memory open during the countdown. On iPhone, install it to the Home Screen and allow notifications. When delivered, it should appear in Notification Center and on the Lock Screen if iOS notification settings allow it.</Text>
+            </Stack>
 
             <Divider />
 
