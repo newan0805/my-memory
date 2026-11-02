@@ -24,13 +24,17 @@ const getDeviceCredentials = () => {
 const getReminderItems = () => {
   const todos = JSON.parse(localStorage.getItem('todos') || '[]');
   const schedules = JSON.parse(localStorage.getItem('schedules') || '[]');
+  const testReminder = JSON.parse(localStorage.getItem('todoPushTestReminder') || 'null');
   const items = [
     ...todos.filter((todo) => todo.reminder !== false && !todo.completed && todo.dueDate && todo.dueTime)
       .map((todo) => ({ key: `todo-${todo.id}`, title: todo.title, dueAt: new Date(`${todo.dueDate}T${todo.dueTime}`).getTime(), url: '/todos' })),
     ...schedules.filter((schedule) => schedule.reminder !== false && !schedule.completed && schedule.date && schedule.startTime)
       .map((schedule) => ({ key: `schedule-${schedule.id}`, title: schedule.title, dueAt: new Date(`${schedule.date}T${schedule.startTime}`).getTime(), url: '/schedules' })),
+    ...(testReminder ? [testReminder] : []),
   ];
-  return items.filter((item) => Number.isFinite(item.dueAt) && item.dueAt > Date.now());
+  // Keep recently due reminders queued through the dispatcher's five-minute polling window.
+  const dispatchGrace = 24 * 60 * 60 * 1000;
+  return items.filter((item) => Number.isFinite(item.dueAt) && item.dueAt > Date.now() - dispatchGrace);
 };
 
 const sendSync = async ({ subscription, enabled = true }) => {
@@ -73,11 +77,25 @@ export const syncPushReminders = async () => {
   return true;
 };
 
+export const queuePushTestReminder = async () => {
+  if (localStorage.getItem(PUSH_ENABLED_KEY) !== 'true') throw new Error('Background push is not active on this device.');
+  const testReminder = {
+    key: `test-${crypto.randomUUID()}`,
+    title: 'Test notification',
+    dueAt: Date.now() + 30_000,
+    url: '/settings',
+  };
+  localStorage.setItem('todoPushTestReminder', JSON.stringify(testReminder));
+  await syncPushReminders();
+  return testReminder;
+};
+
 export const disablePushReminders = async () => {
   if (localStorage.getItem(PUSH_ENABLED_KEY) === 'true') await sendSync({ enabled: false });
   const registration = await navigator.serviceWorker?.getRegistration();
   const subscription = await registration?.pushManager?.getSubscription();
   await subscription?.unsubscribe();
+  localStorage.removeItem('todoPushTestReminder');
   localStorage.removeItem(PUSH_ENABLED_KEY);
   localStorage.removeItem(DEVICE_ID_KEY);
   localStorage.removeItem(DEVICE_TOKEN_KEY);

@@ -9,7 +9,7 @@ import usePreferences from '../hooks/usePreferences';
 import BackupRestore from '../components/BackupRestore';
 import { clearAllData } from '../utils/storage';
 import { notificationsEnabled, scheduleReminders } from '../utils/reminders';
-import { disablePushReminders, enablePushReminders, pushRemindersEnabled } from '../utils/pushNotifications';
+import { disablePushReminders, enablePushReminders, pushRemindersEnabled, queuePushTestReminder } from '../utils/pushNotifications';
 
 function Settings({ user, setUser }) {
   const navigate = useNavigate();
@@ -22,6 +22,7 @@ function Settings({ user, setUser }) {
   const [notificationPermission, setNotificationPermission] = useState(() => ('Notification' in window ? Notification.permission : 'unsupported'));
   const [testEndsAt, setTestEndsAt] = useState(null);
   const [testSecondsLeft, setTestSecondsLeft] = useState(0);
+  const [testPushQueued, setTestPushQueued] = useState(false);
 
   const enableReminders = async () => {
     if (!('Notification' in window)) {
@@ -67,6 +68,11 @@ function Settings({ user, setUser }) {
   useEffect(() => {
     if (!testEndsAt) return undefined;
     const sendTest = async () => {
+      if (pushOn) {
+        setTestPushQueued(true);
+        toast.info('Background test queued. It may arrive within five minutes.');
+        return;
+      }
       try {
         let registration = await navigator.serviceWorker?.getRegistration();
         if (!registration && 'serviceWorker' in navigator) registration = await navigator.serviceWorker.register('/sw.js');
@@ -97,7 +103,21 @@ function Settings({ user, setUser }) {
     tick();
     interval = setInterval(tick, 250);
     return () => clearInterval(interval);
-  }, [testEndsAt]);
+  }, [testEndsAt, pushOn]);
+
+  const startTestNotification = async () => {
+    if (pushOn) {
+      try {
+        await queuePushTestReminder();
+        setTestPushQueued(false);
+      } catch (error) {
+        toast.error(`Could not queue background test: ${error.message}`);
+        return;
+      }
+    }
+    setTestSecondsLeft(30);
+    setTestEndsAt(Date.now() + 30_000);
+  };
 
   useEffect(() => setPetName(preferences.petName), [preferences.petName]);
   useEffect(() => setPetEmoji(preferences.customPetEmoji), [preferences.customPetEmoji]);
@@ -182,14 +202,11 @@ function Settings({ user, setUser }) {
                 variant="light"
                 leftSection={<IconBell size={16} />}
                 disabled={!remindersOn || notificationPermission !== 'granted' || !!testEndsAt}
-                onClick={() => {
-                  setTestSecondsLeft(30);
-                  setTestEndsAt(Date.now() + 30_000);
-                }}
+                onClick={startTestNotification}
               >
-                {testEndsAt ? `Sending test notification in ${testSecondsLeft}s` : 'Send test notification in 30 seconds'}
+                {testEndsAt ? `Sending test notification in ${testSecondsLeft}s` : testPushQueued ? 'Background test queued (up to 5 minutes)' : 'Send test notification in 30 seconds'}
               </Button>
-              <Text size="xs" c="dimmed">Keep My Memory open during the countdown. On iPhone, install it to the Home Screen and allow notifications. When delivered, it should appear in Notification Center and on the Lock Screen if iOS notification settings allow it.</Text>
+              <Text size="xs" c="dimmed">{pushOn ? 'Background push is queued on the server, so you can lock the phone after starting the countdown.' : 'Keep My Memory open during the countdown.'} On iPhone, install it to the Home Screen and allow notifications. When delivered, it should appear in Notification Center and on the Lock Screen if iOS settings allow it.</Text>
             </Stack>
 
             <Divider />

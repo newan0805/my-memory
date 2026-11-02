@@ -6,7 +6,7 @@
 
 export const DATA_KEYS = ['userProfile', 'userName', 'schedules', 'todos', 'subtasks', 'preferences', 'sidebarCollapsed', 'todoRemindersEnabled'];
 // Caches that are safe to lose; cleared with the rest of the data but never backed up.
-const CACHE_KEYS = ['weatherCache', 'quoteQueue', 'dateFilters', 'todoPushDeviceId', 'todoPushDeviceToken', 'todoPushBackendActive'];
+const CACHE_KEYS = ['weatherCache', 'quoteQueue', 'dateFilters', 'todoPushDeviceId', 'todoPushDeviceToken', 'todoPushBackendActive', 'todoPushTestReminder'];
 const LAST_BACKUP_KEY = 'lastBackupAt';
 
 const BACKUP_APP = 'my-memory';

@@ -21,6 +21,6 @@ Set these for the Preview environment (and Production if you use it) and redeplo
 
 ## Scheduler limits
 
-The app creates a QStash recurring dispatcher while there are pending reminders. It checks for due reminders every five minutes and stops itself when the queue becomes empty. This works with preview deployments and avoids Vercel Cron's production-only and Hobby timing limits. QStash's free tier has a daily message quota, so a busy device may need a paid plan.
+The app creates a QStash recurring dispatcher while there are pending reminders. It checks for due reminders every five minutes and stops itself when the queue becomes empty. This works with preview deployments and avoids Vercel Cron's production-only and Hobby timing limits. While reminders are pending, the dispatcher uses 288 QStash messages per day, plus one message per delivered reminder; the free tier's daily quota may be exceeded if you have many reminders or long-running pending tasks.
 
 Users still need to install the PWA on iPhone, grant notification permission, and enable reminders in Settings. Each device has its own subscription and reminder list.

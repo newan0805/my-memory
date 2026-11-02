@@ -28,6 +28,7 @@ const updateDispatcher = async (redis, request) => {
     cron: '*/5 * * * *',
     headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
     body: { trigger: 'due-reminder-check' },
+    redact: { header: ['Authorization'] },
   });
 };
 
@@ -51,7 +52,7 @@ export default async function handler(request, response) {
     if (!item || typeof item.key !== 'string' || item.key.length > 120 || typeof item.title !== 'string' || !Number.isFinite(item.dueAt)) {
       return jsonError(response, 400, 'Invalid reminder item.');
     }
-    if (item.dueAt <= now || item.dueAt > now + 366 * 24 * 60 * 60 * 1000) continue;
+    if (item.dueAt <= now - 24 * 60 * 60 * 1000 || item.dueAt > now + 366 * 24 * 60 * 60 * 1000) continue;
     cleanItems.push({
       key: item.key,
       title: item.title.slice(0, 200),
