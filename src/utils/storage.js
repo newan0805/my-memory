@@ -4,7 +4,7 @@
 // (3) let the user export/import a JSON backup file — the only thing that
 // survives uninstalling the PWA.
 
-export const DATA_KEYS = ['userProfile', 'userName', 'schedules', 'todos', 'subtasks', 'preferences', 'sidebarCollapsed'];
+export const DATA_KEYS = ['userProfile', 'userName', 'schedules', 'todos', 'subtasks', 'preferences', 'sidebarCollapsed', 'todoRemindersEnabled'];
 // Caches that are safe to lose; cleared with the rest of the data but never backed up.
 const CACHE_KEYS = ['weatherCache', 'quoteQueue', 'dateFilters'];
 const LAST_BACKUP_KEY = 'lastBackupAt';

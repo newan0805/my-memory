@@ -10,6 +10,7 @@ import TodosPage from './pages/TodosPage';
 import SchedulesPage from './pages/SchedulesPage';
 import TaskLog from './pages/TaskLog';
 import { getLastBackupAt } from './utils/storage';
+import { scheduleReminders } from './utils/reminders';
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -24,6 +25,17 @@ const readUser = () => {
 
 function App({ restored }) {
   const [user, setUser] = useState(readUser);
+
+  useEffect(() => {
+    scheduleReminders();
+    const refresh = () => scheduleReminders();
+    window.addEventListener('todo-reminders-changed', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('todo-reminders-changed', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
 
   useEffect(() => {
     if (restored) toast.success('Your data was restored from the on-device backup.');

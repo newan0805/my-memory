@@ -41,6 +41,7 @@ import { motion } from 'framer-motion';
 import Layout from '../components/Layout';
 import SubtaskChecklist from '../components/SubtaskChecklist';
 import { loadSubtasks, subtaskHandlers, draftHandlers } from '../utils/subtasks';
+import { refreshTodoReminders } from '../utils/reminders';
 import RecurrenceFields from '../components/RecurrenceFields';
 import useScheduleActions from '../hooks/useScheduleActions';
 import { NO_REPEAT } from '../utils/recurrence';
@@ -149,6 +150,7 @@ function Dashboard({ user }) {
   const toggleTodo = (id) => {
     const updated = todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
     localStorage.setItem('todos', JSON.stringify(updated));
+    refreshTodoReminders();
     setTodos(updated);
     toast.success(updated.find(t => t.id === id).completed ? 'Task completed!' : 'Task reopened');
   };
@@ -156,6 +158,7 @@ function Dashboard({ user }) {
   const deleteTodo = (id) => {
     const updated = todos.filter(t => t.id !== id);
     localStorage.setItem('todos', JSON.stringify(updated));
+    refreshTodoReminders();
     setTodos(updated);
     toast.success('Task deleted');
   };
@@ -163,6 +166,7 @@ function Dashboard({ user }) {
   const completeAllOverdue = () => {
     const updated = todos.map(t => t.dueDate < getTodayStr() && !t.completed ? { ...t, completed: true } : t);
     localStorage.setItem('todos', JSON.stringify(updated));
+    refreshTodoReminders();
     setTodos(updated);
     toast.success('All overdue tasks completed');
   };
@@ -172,6 +176,7 @@ function Dashboard({ user }) {
     const todo = { id: Date.now(), title: newTodo.title, priority: newTodo.priority, dueTime: newTodo.dueTime, category: newTodo.category, dueDate: getTodayStr(), completed: false };
     const updated = [...todos, todo];
     localStorage.setItem('todos', JSON.stringify(updated));
+    refreshTodoReminders();
     setTodos(updated);
     setTodoModalOpen(false);
     setNewTodo({ title: '', priority: 'medium', dueTime: '09:00', category: 'Personal' });

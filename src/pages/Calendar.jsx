@@ -8,6 +8,7 @@ import Layout from '../components/Layout';
 import SubtaskChecklist from '../components/SubtaskChecklist';
 import { loadSubtasks, subtaskHandlers, draftHandlers } from '../utils/subtasks';
 import RecurrenceFields from '../components/RecurrenceFields';
+import { refreshTodoReminders } from '../utils/reminders';
 import useScheduleActions, { SCOPE_OPTIONS } from '../hooks/useScheduleActions';
 import { NO_REPEAT } from '../utils/recurrence';
 
@@ -88,6 +89,7 @@ function Calendar({ user }) {
     const todo = { id: Date.now(), ...newTodo, dueDate: selectedDate, completed: false };
     const updated = [...todos, todo];
     localStorage.setItem('todos', JSON.stringify(updated));
+    refreshTodoReminders();
     setTodos(updated);
     setTodoModalOpen(false);
     setNewTodo({ title: '', priority: 'medium', dueTime: '09:00', category: 'Personal' });
@@ -98,6 +100,7 @@ function Calendar({ user }) {
     if (!editTodo?.title) return toast.error('Please enter a title');
     const updated = todos.map(t => t.id === editTodo.id ? editTodo : t);
     localStorage.setItem('todos', JSON.stringify(updated));
+    refreshTodoReminders();
     setTodos(updated);
     setEditTodo(null);
     toast.success('Todo updated!');
@@ -106,6 +109,7 @@ function Calendar({ user }) {
   const deleteTodo = (id) => {
     const updated = todos.filter(t => t.id !== id);
     localStorage.setItem('todos', JSON.stringify(updated));
+    refreshTodoReminders();
     setTodos(updated);
     toast.success('Todo deleted');
   };
@@ -113,6 +117,7 @@ function Calendar({ user }) {
   const toggleTodo = (id) => {
     const updated = todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
     localStorage.setItem('todos', JSON.stringify(updated));
+    refreshTodoReminders();
     setTodos(updated);
     toast.success('Updated');
   };

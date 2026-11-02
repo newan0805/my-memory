@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Card, Title, Text, Button, Stack, Group, Switch, Divider, Alert, SimpleGrid, UnstyledButton, TextInput, Box } from '@mantine/core';
-import { IconArrowLeft, IconTrash, IconAlertTriangle, IconSettings, IconDatabase, IconPalette, IconDeviceFloppy, IconCloudUpload } from '@tabler/icons-react';
+import { IconArrowLeft, IconTrash, IconAlertTriangle, IconSettings, IconDatabase, IconPalette, IconDeviceFloppy, IconCloudUpload, IconBell } from '@tabler/icons-react';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import { PETS, PetSvg, parseEmoji } from '../components/Pet';
 import usePreferences from '../hooks/usePreferences';
 import BackupRestore from '../components/BackupRestore';
 import { clearAllData } from '../utils/storage';
+import { notificationsEnabled, scheduleReminders } from '../utils/reminders';
 
 function Settings({ user, setUser }) {
   const navigate = useNavigate();
@@ -15,6 +16,35 @@ function Settings({ user, setUser }) {
   const [petName, setPetName] = useState(preferences.petName);
 
   const [petEmoji, setPetEmoji] = useState(preferences.customPetEmoji);
+  const [remindersOn, setRemindersOn] = useState(() => notificationsEnabled());
+  const [notificationPermission, setNotificationPermission] = useState(() => ('Notification' in window ? Notification.permission : 'unsupported'));
+
+  const enableReminders = async () => {
+    if (!('Notification' in window)) {
+      toast.error('This browser does not support notifications');
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      if (permission !== 'granted') {
+        toast.info('Notifications were not enabled');
+        return;
+      }
+      localStorage.setItem('todoRemindersEnabled', 'true');
+      setRemindersOn(true);
+      await scheduleReminders();
+      toast.success('Task reminders enabled on this device');
+    } catch {
+      toast.error('Could not enable notifications on this device');
+    }
+  };
+
+  const disableReminders = () => {
+    localStorage.setItem('todoRemindersEnabled', 'false');
+    setRemindersOn(false);
+    scheduleReminders();
+  };
 
   useEffect(() => setPetName(preferences.petName), [preferences.petName]);
   useEffect(() => setPetEmoji(preferences.customPetEmoji), [preferences.customPetEmoji]);
@@ -73,6 +103,27 @@ function Settings({ user, setUser }) {
                 <Text size="sm" c="dimmed">Use dark theme</Text>
               </Stack>
               <Switch defaultChecked disabled />
+            </Group>
+
+            <Divider />
+
+            <Stack gap="xs">
+              <Group gap="xs">
+                <IconBell size={20} color="var(--mantine-color-yellow-5)" />
+                <Title order={3}>Task Reminders</Title>
+              </Group>
+              <Text size="sm" c="dimmed">Get device notifications when todos or schedules are due</Text>
+            </Stack>
+
+            <Alert color="blue" variant="light">
+              Reminders are scheduled on this device while My Memory is open. The browser may pause them when the app is closed; reliable closed-app delivery needs a push server. On iPhone, install this app to the Home Screen first.
+            </Alert>
+            <Group justify="space-between">
+              <Stack gap={2}>
+                <Text fw={500}>{remindersOn ? 'Reminders enabled' : 'Reminders disabled'}</Text>
+                <Text size="sm" c="dimmed">Notification permission: {notificationPermission}</Text>
+              </Stack>
+              {remindersOn ? <Button variant="light" color="gray" onClick={disableReminders}>Turn off</Button> : <Button leftSection={<IconBell size={16} />} onClick={enableReminders}>Enable notifications</Button>}
             </Group>
 
             <Divider />

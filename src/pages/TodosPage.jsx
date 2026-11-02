@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Title, Text, Card, Group, Stack, Button, Badge, Checkbox, Paper, ActionIcon, Modal, TextInput, Select } from '@mantine/core';
+import { Container, Title, Text, Card, Group, Stack, Button, Badge, Checkbox, Paper, ActionIcon, Modal, TextInput, Select, Switch } from '@mantine/core';
 import { IconArrowLeft, IconPlus, IconTrash, IconChecklist, IconClock } from '@tabler/icons-react';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import { getLocalDateStr } from '../utils/date';
 import DateFilter, { useDateFilter, getDateRange, isInRange, sortByDate } from '../components/DateFilter';
+import { refreshTodoReminders } from '../utils/reminders';
 
 const PRIORITY_COLORS = { high: '#f87171', medium: '#facc15', low: '#60a5fa' };
 
@@ -46,7 +47,7 @@ function TodosPage({ user }) {
   const navigate = useNavigate();
   const [todos, setTodos] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [newTodo, setNewTodo] = useState({ title: '', priority: 'medium', dueTime: '09:00', category: 'Personal', dueDate: getLocalDateStr() });
+  const [newTodo, setNewTodo] = useState({ title: '', priority: 'medium', dueTime: '09:00', category: 'Personal', dueDate: getLocalDateStr(), reminder: true });
 
   useEffect(() => {
     setTodos(JSON.parse(localStorage.getItem('todos') || '[]'));
@@ -55,6 +56,7 @@ function TodosPage({ user }) {
   const toggleTodo = (id) => {
     const updated = todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
     localStorage.setItem('todos', JSON.stringify(updated));
+    refreshTodoReminders();
     setTodos(updated);
     toast.success(updated.find(t => t.id === id).completed ? 'Task completed!' : 'Task reopened');
   };
@@ -62,6 +64,7 @@ function TodosPage({ user }) {
   const deleteTodo = (id) => {
     const updated = todos.filter(t => t.id !== id);
     localStorage.setItem('todos', JSON.stringify(updated));
+    refreshTodoReminders();
     setTodos(updated);
     toast.success('Task deleted');
   };
@@ -71,9 +74,10 @@ function TodosPage({ user }) {
     const todo = { id: Date.now(), ...newTodo, completed: false };
     const updated = [...todos, todo];
     localStorage.setItem('todos', JSON.stringify(updated));
+    refreshTodoReminders();
     setTodos(updated);
     setModalOpen(false);
-    setNewTodo({ title: '', priority: 'medium', dueTime: '09:00', category: 'Personal', dueDate: getLocalDateStr() });
+    setNewTodo({ title: '', priority: 'medium', dueTime: '09:00', category: 'Personal', dueDate: getLocalDateStr(), reminder: true });
     toast.success('Todo added!');
   };
 
@@ -138,6 +142,7 @@ function TodosPage({ user }) {
           <Select label="Priority" data={[{value:'high',label:'High'},{value:'medium',label:'Medium'},{value:'low',label:'Low'}]} value={newTodo.priority} onChange={(v) => setNewTodo({...newTodo, priority: v})} />
           <TextInput label="Due Date" type="date" value={newTodo.dueDate} onChange={(e) => setNewTodo({...newTodo, dueDate: e.target.value})} />
           <TextInput label="Due Time" type="time" value={newTodo.dueTime} onChange={(e) => setNewTodo({...newTodo, dueTime: e.target.value})} />
+          <Switch label="Remind me at the due time" checked={newTodo.reminder} onChange={(e) => setNewTodo({...newTodo, reminder: e.currentTarget.checked})} />
           <Select label="Category" data={[{value:'Work',label:'Work'},{value:'Personal',label:'Personal'},{value:'Study',label:'Study'},{value:'School',label:'School'},{value:'Fitness',label:'Fitness'}]} value={newTodo.category} onChange={(v) => setNewTodo({...newTodo, category: v})} />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={() => setModalOpen(false)}>Cancel</Button>

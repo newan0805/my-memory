@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Modal, Stack, Text, Button, Group, Radio } from '@mantine/core';
 import { toast } from 'react-toastify';
 import { createSchedules, deleteSchedules, updateSchedules, idsInScope, seriesSize } from '../utils/recurrence';
+import { refreshTodoReminders } from '../utils/reminders';
 
 export const SCOPE_OPTIONS = [
   { value: 'one', label: 'This event only' },
@@ -26,6 +27,7 @@ function useScheduleActions({ schedules, subtasks, setSchedules, setSubtasks }) 
       return false;
     }
     setSchedules(result.schedules);
+    refreshTodoReminders();
     setSubtasks(result.subtasks);
     toast.success(result.count > 1 ? `${result.count} schedules added` : 'Schedule added!');
     return true;
@@ -39,6 +41,7 @@ function useScheduleActions({ schedules, subtasks, setSchedules, setSubtasks }) 
     const original = schedules.find((s) => s.id === edited.id) || edited;
     const count = idsInScope(schedules, original, editScope).length;
     setSchedules(updateSchedules({ schedules, edited, scope: editScope }));
+    refreshTodoReminders();
     toast.success(count > 1 ? `${count} schedules updated` : 'Schedule updated!');
     return true;
   };
@@ -47,6 +50,7 @@ function useScheduleActions({ schedules, subtasks, setSchedules, setSubtasks }) 
     const ids = idsInScope(schedules, schedule, removeScope);
     const result = deleteSchedules({ schedules, subtasks, ids });
     setSchedules(result.schedules);
+    refreshTodoReminders();
     setSubtasks(result.subtasks);
     toast.success(ids.length > 1 ? `${ids.length} schedules deleted` : 'Schedule deleted');
   };
