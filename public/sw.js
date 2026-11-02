@@ -19,12 +19,31 @@ self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
+self.addEventListener('push', (event) => {
+  event.waitUntil((async () => {
+    let data = {};
+    try { data = event.data?.json() || {}; } catch { /* ignore malformed push payloads */ }
+    const url = data.url === '/schedules' ? '/schedules' : '/todos';
+    await self.registration.showNotification(data.title || 'My Memory reminder', {
+      body: data.body || 'A task is due now.',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: data.tag || `push-${Date.now()}`,
+      data: { url },
+    });
+  })());
+});
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clients) => {
+    const url = event.notification.data?.url || '/';
     const existing = clients.find((client) => 'focus' in client);
-    if (existing) return existing.focus();
-    return self.clients.openWindow(event.notification.data?.url || '/');
+    if (existing) {
+      if (existing.navigate) await existing.navigate(url);
+      return existing.focus();
+    }
+    return self.clients.openWindow(url);
   }));
 });
 

@@ -1,3 +1,5 @@
+import { pushRemindersEnabled, syncPushReminders } from './pushNotifications';
+
 const timers = new Map();
 
 export const notificationsEnabled = () => localStorage.getItem('todoRemindersEnabled') === 'true';
@@ -6,6 +8,10 @@ export const scheduleReminders = async () => {
   timers.forEach(clearTimeout);
   timers.clear();
   if (!notificationsEnabled() || !('Notification' in window) || Notification.permission !== 'granted') return;
+  if (pushRemindersEnabled()) {
+    try { await syncPushReminders(); } catch (error) { console.error('Could not sync background reminders:', error); }
+    return;
+  }
 
   let todos = [];
   try { todos = JSON.parse(localStorage.getItem('todos') || '[]'); } catch { return; }

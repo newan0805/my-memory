@@ -9,6 +9,7 @@ import usePreferences from '../hooks/usePreferences';
 import BackupRestore from '../components/BackupRestore';
 import { clearAllData } from '../utils/storage';
 import { notificationsEnabled, scheduleReminders } from '../utils/reminders';
+import { disablePushReminders, enablePushReminders, pushRemindersEnabled } from '../utils/pushNotifications';
 
 function Settings({ user, setUser }) {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ function Settings({ user, setUser }) {
 
   const [petEmoji, setPetEmoji] = useState(preferences.customPetEmoji);
   const [remindersOn, setRemindersOn] = useState(() => notificationsEnabled());
+  const [pushOn, setPushOn] = useState(() => pushRemindersEnabled());
   const [notificationPermission, setNotificationPermission] = useState(() => ('Notification' in window ? Notification.permission : 'unsupported'));
   const [testEndsAt, setTestEndsAt] = useState(null);
   const [testSecondsLeft, setTestSecondsLeft] = useState(0);
@@ -35,14 +37,28 @@ function Settings({ user, setUser }) {
       }
       localStorage.setItem('todoRemindersEnabled', 'true');
       setRemindersOn(true);
+      try {
+        await enablePushReminders();
+        setPushOn(true);
+        toast.success('Background push reminders enabled');
+      } catch (error) {
+        setPushOn(false);
+        toast.warning(`Background push is not configured; reminders will work while the app is open. ${error.message}`);
+      }
       await scheduleReminders();
-      toast.success('Task reminders enabled on this device');
     } catch {
       toast.error('Could not enable notifications on this device');
     }
   };
 
-  const disableReminders = () => {
+  const disableReminders = async () => {
+    try {
+      await disablePushReminders();
+      setPushOn(false);
+    } catch {
+      toast.error('Could not disable background reminders. Try again while connected to the internet.');
+      return;
+    }
     localStorage.setItem('todoRemindersEnabled', 'false');
     setRemindersOn(false);
     scheduleReminders();
@@ -152,12 +168,12 @@ function Settings({ user, setUser }) {
             </Stack>
 
             <Alert color="blue" variant="light">
-              Reminders are scheduled on this device while My Memory is open. The browser may pause them when the app is closed; reliable closed-app delivery needs a push server. On iPhone, install this app to the Home Screen first.
+              {pushOn ? 'Background push is active for this device. Tasks and schedules are sent securely to the reminder service so it can notify you while My Memory is closed.' : 'Background push needs server configuration. Until it is active, reminders run on this device while My Memory is open and the browser may pause them when closed.'} On iPhone, install this app to the Home Screen first.
             </Alert>
             <Group justify="space-between">
               <Stack gap={2}>
                 <Text fw={500}>{remindersOn ? 'Reminders enabled' : 'Reminders disabled'}</Text>
-                <Text size="sm" c="dimmed">Notification permission: {notificationPermission}</Text>
+                <Text size="sm" c="dimmed">Notification permission: {notificationPermission} · {pushOn ? 'Background push active' : 'Background push inactive'}</Text>
               </Stack>
               {remindersOn ? <Button variant="light" color="gray" onClick={disableReminders}>Turn off</Button> : <Button leftSection={<IconBell size={16} />} onClick={enableReminders}>Enable notifications</Button>}
             </Group>
