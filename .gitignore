@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Temp files created by FUSE mounts for deleted-but-open files
+.fuse_hidden*
