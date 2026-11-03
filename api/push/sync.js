@@ -56,6 +56,8 @@ export default async function handler(request, response) {
     cleanItems.push({
       key: item.key,
       title: item.title.slice(0, 200),
+      body: typeof item.body === 'string' ? item.body.slice(0, 500) : `It's time for: ${item.title.slice(0, 200)}`,
+      ...(Number.isFinite(item.eventAt) ? { eventAt: item.eventAt, kind: 'schedule' } : {}),
       dueAt: item.dueAt,
       url: item.url === '/schedules' ? '/schedules' : '/todos',
     });

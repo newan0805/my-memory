@@ -35,9 +35,14 @@ export default async function handler(request, response) {
       }
 
       try {
+        const body = record.item.kind === 'schedule' && Number.isFinite(record.item.eventAt)
+          ? record.item.eventAt > Date.now()
+            ? `${record.item.title} starts in ${Math.ceil((record.item.eventAt - Date.now()) / 60_000)} minutes.`
+            : `It's time for: ${record.item.title}`
+          : record.item.body || `It's time for: ${record.item.title}`;
         await webPush.sendNotification(device.subscription, JSON.stringify({
           title: 'My Memory reminder',
-          body: `It's time for: ${record.item.title}`,
+          body,
           url: record.item.url,
           tag: id,
         }), { TTL: 3600, urgency: 'high' });

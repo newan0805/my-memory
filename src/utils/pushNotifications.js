@@ -24,12 +24,27 @@ const getDeviceCredentials = () => {
 const getReminderItems = () => {
   const todos = JSON.parse(localStorage.getItem('todos') || '[]');
   const schedules = JSON.parse(localStorage.getItem('schedules') || '[]');
+  let preferences = {};
+  try { preferences = JSON.parse(localStorage.getItem('preferences') || '{}'); } catch { /* use defaults */ }
+  const storedLeadMinutes = preferences.scheduleReminderLeadMinutes;
+  const scheduleLeadMinutes = Math.max(0, Math.min(1440, storedLeadMinutes == null ? 30 : Number(storedLeadMinutes) || 0));
   const testReminder = JSON.parse(localStorage.getItem('todoPushTestReminder') || 'null');
   const items = [
     ...todos.filter((todo) => todo.reminder !== false && !todo.completed && todo.dueDate && todo.dueTime)
       .map((todo) => ({ key: `todo-${todo.id}`, title: todo.title, dueAt: new Date(`${todo.dueDate}T${todo.dueTime}`).getTime(), url: '/todos' })),
     ...schedules.filter((schedule) => schedule.reminder !== false && !schedule.completed && schedule.date && schedule.startTime)
-      .map((schedule) => ({ key: `schedule-${schedule.id}`, title: schedule.title, dueAt: new Date(`${schedule.date}T${schedule.startTime}`).getTime(), url: '/schedules' })),
+      .map((schedule) => {
+        const eventAt = new Date(`${schedule.date}T${schedule.startTime}`).getTime();
+        return {
+          key: `schedule-${schedule.id}`,
+          kind: 'schedule',
+          title: schedule.title,
+          eventAt,
+          dueAt: eventAt - scheduleLeadMinutes * 60_000,
+          body: scheduleLeadMinutes > 0 ? `${schedule.title} starts in ${scheduleLeadMinutes} minutes.` : `It's time for: ${schedule.title}`,
+          url: '/schedules',
+        };
+      }),
     ...(testReminder ? [testReminder] : []),
   ];
   // Keep recently due reminders queued through the dispatcher's five-minute polling window.

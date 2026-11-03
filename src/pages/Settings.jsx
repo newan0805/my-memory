@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Card, Title, Text, Button, Stack, Group, Switch, Divider, Alert, SimpleGrid, UnstyledButton, TextInput, Box } from '@mantine/core';
+import { Container, Card, Title, Text, Button, Stack, Group, Switch, Divider, Alert, SimpleGrid, UnstyledButton, TextInput, Box, NumberInput } from '@mantine/core';
 import { IconArrowLeft, IconTrash, IconAlertTriangle, IconSettings, IconDatabase, IconPalette, IconDeviceFloppy, IconCloudUpload, IconBell } from '@tabler/icons-react';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
@@ -121,6 +121,7 @@ function Settings({ user, setUser }) {
 
   useEffect(() => setPetName(preferences.petName), [preferences.petName]);
   useEffect(() => setPetEmoji(preferences.customPetEmoji), [preferences.customPetEmoji]);
+  useEffect(() => { scheduleReminders(); }, [preferences.scheduleReminderLeadMinutes, preferences.dailyBriefingEnabled, preferences.dailyBriefingTime, remindersOn]);
 
   const savePetEmoji = () => {
     const emoji = parseEmoji(petEmoji);
@@ -197,6 +198,42 @@ function Settings({ user, setUser }) {
               </Stack>
               {remindersOn ? <Button variant="light" color="gray" onClick={disableReminders}>Turn off</Button> : <Button leftSection={<IconBell size={16} />} onClick={enableReminders}>Enable notifications</Button>}
             </Group>
+            <Group justify="space-between" align="center" wrap="nowrap">
+              <Stack gap={2} style={{ flex: 1 }}>
+                <Text fw={500}>Schedule reminder lead time</Text>
+                <Text size="sm" c="dimmed">Notify before each schedule starts; set 0 for the start time</Text>
+              </Stack>
+              <NumberInput
+                aria-label="Schedule reminder lead time in minutes"
+                min={0}
+                max={1440}
+                step={5}
+                suffix=" min"
+                value={preferences.scheduleReminderLeadMinutes}
+                onChange={(value) => updatePreferences({ scheduleReminderLeadMinutes: Number(value) || 0 })}
+                w={120}
+              />
+            </Group>
+            <Group justify="space-between" align="center" wrap="nowrap">
+              <Stack gap={2} style={{ flex: 1 }}>
+                <Text fw={500}>Daily agenda notification</Text>
+                <Text size="sm" c="dimmed">A morning summary of today's todos and schedules</Text>
+              </Stack>
+              <Switch
+                aria-label="Enable daily agenda notification"
+                checked={preferences.dailyBriefingEnabled}
+                onChange={(event) => updatePreferences({ dailyBriefingEnabled: event.currentTarget.checked })}
+              />
+            </Group>
+            {preferences.dailyBriefingEnabled && (
+              <TextInput
+                label="Daily agenda time"
+                type="time"
+                value={preferences.dailyBriefingTime}
+                onChange={(event) => updatePreferences({ dailyBriefingTime: event.currentTarget.value })}
+              />
+            )}
+            <Text size="xs" c="dimmed">The daily agenda is assembled on this device and requires My Memory to be open. Background push can deliver individual reminders while closed.</Text>
             <Stack gap="xs">
               <Button
                 variant="light"

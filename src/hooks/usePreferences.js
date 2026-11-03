@@ -10,6 +10,9 @@ export const DEFAULT_PREFERENCES = {
   petVisible: true,
   weatherVisible: true,
   timeBackground: true,
+  scheduleReminderLeadMinutes: 30,
+  dailyBriefingEnabled: false,
+  dailyBriefingTime: '07:00',
 };
 
 const readPreferences = () => {
